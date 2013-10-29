@@ -1,24 +1,22 @@
 require 'puppet'
+require 'sync'
 require 'getoptlong'
 require 'puppet/util/watched_file'
 require 'puppet/util/command_line/puppet_option_parser'
+require 'puppet/settings/errors'
+require 'puppet/settings/string_setting'
+require 'puppet/settings/file_setting'
+require 'puppet/settings/directory_setting'
+require 'puppet/settings/path_setting'
+require 'puppet/settings/boolean_setting'
+require 'puppet/settings/terminus_setting'
+require 'puppet/settings/duration_setting'
+require 'puppet/settings/config_file'
+require 'puppet/settings/value_translator'
 
 # The class for handling configuration files.
 class Puppet::Settings
   include Enumerable
-
-  require 'puppet/settings/errors'
-  require 'puppet/settings/base_setting'
-  require 'puppet/settings/string_setting'
-  require 'puppet/settings/enum_setting'
-  require 'puppet/settings/file_setting'
-  require 'puppet/settings/directory_setting'
-  require 'puppet/settings/path_setting'
-  require 'puppet/settings/boolean_setting'
-  require 'puppet/settings/terminus_setting'
-  require 'puppet/settings/duration_setting'
-  require 'puppet/settings/config_file'
-  require 'puppet/settings/value_translator'
 
   # local reference for convenience
   PuppetOptionParser = Puppet::Util::CommandLine::PuppetOptionParser
@@ -72,6 +70,9 @@ class Puppet::Settings
 
     @created = []
     @searchpath = nil
+
+    # Mutex-like thing to protect @values
+    @sync = Sync.new
 
     # Keep track of set values.
     @values = Hash.new { |hash, key| hash[key] = {} }
@@ -131,7 +132,9 @@ class Puppet::Settings
 
   # Remove all set values, potentially skipping cli values.
   def clear
-    unsafe_clear
+    @sync.synchronize do
+      unsafe_clear
+    end
   end
 
   # Remove all set values, potentially skipping cli values.
@@ -153,32 +156,7 @@ class Puppet::Settings
   end
   private :unsafe_clear
 
-  # Clear @cache, @used and the Environment.
-  #
-  # Whenever an object is returned by Settings, a copy is stored in @cache.
-  # As long as Setting attributes that determine the content of returned
-  # objects remain unchanged, Settings can keep returning objects from @cache
-  # without re-fetching or re-generating them.
-  #
-  # Whenever a Settings attribute changes, such as @values or @preferred_run_mode,
-  # this method must be called to clear out the caches so that updated
-  # objects will be returned.
-  def flush_cache
-    unsafe_flush_cache
-  end
-
-  def unsafe_flush_cache
-    clearused
-
-    # Clear the list of environments, because they cache, at least, the module path.
-    # We *could* preferentially just clear them if the modulepath is changed,
-    # but we don't really know if, say, the vardir is changed and the modulepath
-    # is defined relative to it. We need the defined?(stuff) because of loading
-    # order issues.
-    Puppet::Node::Environment.clear if defined?(Puppet::Node) and defined?(Puppet::Node::Environment)
-  end
-  private :unsafe_flush_cache
-
+  # This is mostly just used for testing.
   def clearused
     @cache.clear
     @used = []
@@ -244,7 +222,7 @@ class Puppet::Settings
   # "no-" prefix on flag/boolean options).
   #
   # @param [String] opt the command line option that we are munging
-  # @param [String, TrueClass, FalseClass] val the value for the setting (as determined by the OptionParser)
+  # @param [String, TrueClass, FalseClass] the value for the setting (as determined by the OptionParser)
   def self.clean_opt(opt, val)
     # rewrite --[no-]option to --no-option if that's what was given
     if opt =~ /\[no-\]/ and !val
@@ -477,10 +455,6 @@ class Puppet::Settings
     mode = mode.to_s.downcase.intern
     raise ValidationError, "Invalid run mode '#{mode}'" unless [:master, :agent, :user].include?(mode)
     @preferred_run_mode_name = mode
-    # Changing the run mode has far-reaching consequences. Flush any cached
-    # settings so they will be re-generated.
-    flush_cache
-    mode
   end
 
   # Return all of the parameters associated with a given section.
@@ -499,7 +473,9 @@ class Puppet::Settings
 
   # Parse the configuration file.  Just provides thread safety.
   def parse_config_files
-    unsafe_parse(which_configuration_file)
+    @sync.synchronize do
+      unsafe_parse(which_configuration_file)
+    end
 
     call_hooks_deferred_to_application_initialization :ignore_interpolation_dependency_errors => true
   end
@@ -617,17 +593,6 @@ class Puppet::Settings
   end
   private :apply_metadata
 
-  SETTING_TYPES = {
-      :string     => StringSetting,
-      :file       => FileSetting,
-      :directory  => DirectorySetting,
-      :path       => PathSetting,
-      :boolean    => BooleanSetting,
-      :terminus   => TerminusSetting,
-      :duration   => DurationSetting,
-      :enum       => EnumSetting,
-  }
-
   # Create a new setting.  The value is passed in because it's used to determine
   # what kind of setting we're creating, but the value itself might be either
   # a default or a value, so we can't actually assign it.
@@ -638,7 +603,15 @@ class Puppet::Settings
     hash[:section] = hash[:section].to_sym if hash[:section]
 
     if type = hash[:type]
-      unless klass = SETTING_TYPES[type]
+      unless klass = {
+          :string     => StringSetting,
+          :file       => FileSetting,
+          :directory  => DirectorySetting,
+          :path       => PathSetting,
+          :boolean    => BooleanSetting,
+          :terminus   => TerminusSetting,
+          :duration   => DurationSetting,
+      } [type]
         raise ArgumentError, "Invalid setting type '#{type}'"
       end
       hash.delete(:type)
@@ -691,11 +664,10 @@ class Puppet::Settings
   private :files
 
   # Checks to see if any of the config files have been modified
-  # @return the filename of the first file that is found to have changed, or
-  #   nil if no files have changed
+  # @return the filename of the first file that is found to have changed, or nil if no files have changed
   def any_files_changed?
     files.each do |file|
-      return file.to_str if file.changed?
+      return file.file if file.changed?
     end
     nil
   end
@@ -703,9 +675,11 @@ class Puppet::Settings
 
   def reuse
     return unless defined?(@used)
-    new = @used
-    @used = []
-    self.use(*new)
+    @sync.synchronize do # yay, thread-safe
+      new = @used
+      @used = []
+      self.use(*new)
+    end
   end
 
   # The order in which to search for values.
@@ -776,8 +750,20 @@ class Puppet::Settings
 
     setting.handle(value) if setting.has_hook? and not options[:dont_trigger_handles]
 
-    @values[type][param] = value
-    unsafe_flush_cache
+    @sync.synchronize do # yay, thread-safe
+
+      @values[type][param] = value
+      @cache.clear
+
+      clearused
+
+      # Clear the list of environments, because they cache, at least, the module path.
+      # We *could* preferentially just clear them if the modulepath is changed,
+      # but we don't really know if, say, the vardir is changed and the modulepath
+      # is defined relative to it. We need the defined?(stuff) because of loading
+      # order issues.
+      Puppet::Node::Environment.clear if defined?(Puppet::Node) and defined?(Puppet::Node::Environment)
+    end
 
     value
   end
@@ -911,27 +897,29 @@ Generated on #{Time.now}.
   # you can 'use' a section as many times as you want.
   def use(*sections)
     sections = sections.collect { |s| s.to_sym }
-    sections = sections.reject { |s| @used.include?(s) }
+    @sync.synchronize do # yay, thread-safe
+      sections = sections.reject { |s| @used.include?(s) }
 
-    return if sections.empty?
+      return if sections.empty?
 
-    begin
-      catalog = to_catalog(*sections).to_ral
-    rescue => detail
-      Puppet.log_and_raise(detail, "Could not create resources for managing Puppet's files and directories in sections #{sections.inspect}: #{detail}")
-    end
-
-    catalog.host_config = false
-    catalog.apply do |transaction|
-      if transaction.any_failed?
-        report = transaction.report
-        failures = report.logs.find_all { |log| log.level == :err }
-        raise "Got #{failures.length} failure(s) while initializing: #{failures.collect { |l| l.to_s }.join("; ")}"
+      begin
+        catalog = to_catalog(*sections).to_ral
+      rescue => detail
+        Puppet.log_and_raise(detail, "Could not create resources for managing Puppet's files and directories in sections #{sections.inspect}: #{detail}")
       end
-    end
 
-    sections.each { |s| @used << s }
-    @used.uniq!
+      catalog.host_config = false
+      catalog.apply do |transaction|
+        if transaction.any_failed?
+          report = transaction.report
+          failures = report.logs.find_all { |log| log.level == :err }
+          raise "Got #{failures.length} failure(s) while initializing: #{failures.collect { |l| l.to_s }.join("; ")}"
+        end
+      end
+
+      sections.each { |s| @used << s }
+      @used.uniq!
+    end
   end
 
   def valid?(param)
@@ -956,7 +944,9 @@ Generated on #{Time.now}.
       each_source(environment) do |source|
         # Look for the value.  We have to test the hash for whether
         # it exists, because the value might be false.
-        return @values[source][param] if @values[source].include?(param)
+        @sync.synchronize do
+          return @values[source][param] if @values[source].include?(param)
+        end
       end
       return nil
   end
@@ -1048,27 +1038,30 @@ Generated on #{Time.now}.
   def readwritelock(default, *args, &bloc)
     file = value(get_config_file_default(default).name)
     tmpfile = file + ".tmp"
+    sync = Sync.new
     raise Puppet::DevError, "Cannot create #{file}; directory #{File.dirname(file)} does not exist" unless FileTest.directory?(File.dirname(tmpfile))
 
-    File.open(file, ::File::CREAT|::File::RDWR, 0600) do |rf|
-      rf.lock_exclusive do
-        if File.exist?(tmpfile)
-          raise Puppet::Error, ".tmp file already exists for #{file}; Aborting locked write. Check the .tmp file and delete if appropriate"
-        end
+    sync.synchronize(Sync::EX) do
+      File.open(file, ::File::CREAT|::File::RDWR, 0600) do |rf|
+        rf.lock_exclusive do
+          if File.exist?(tmpfile)
+            raise Puppet::Error, ".tmp file already exists for #{file}; Aborting locked write. Check the .tmp file and delete if appropriate"
+          end
 
-        # If there's a failure, remove our tmpfile
-        begin
-          writesub(default, tmpfile, *args, &bloc)
-        rescue
-          File.unlink(tmpfile) if FileTest.exist?(tmpfile)
-          raise
-        end
+          # If there's a failure, remove our tmpfile
+          begin
+            writesub(default, tmpfile, *args, &bloc)
+          rescue
+            File.unlink(tmpfile) if FileTest.exist?(tmpfile)
+            raise
+          end
 
-        begin
-          File.rename(tmpfile, file)
-        rescue => detail
-          Puppet.err "Could not rename #{file} to #{tmpfile}: #{detail}"
-          File.unlink(tmpfile) if FileTest.exist?(tmpfile)
+          begin
+            File.rename(tmpfile, file)
+          rescue => detail
+            Puppet.err "Could not rename #{file} to #{tmpfile}: #{detail}"
+            File.unlink(tmpfile) if FileTest.exist?(tmpfile)
+          end
         end
       end
     end
@@ -1143,7 +1136,9 @@ Generated on #{Time.now}.
   def set_metadata(meta)
     meta.each do |var, values|
       values.each do |param, value|
-        @config[var].send(param.to_s + "=", value)
+        @sync.synchronize do # yay, thread-safe
+          @config[var].send(param.to_s + "=", value)
+        end
       end
     end
   end
@@ -1152,9 +1147,11 @@ Generated on #{Time.now}.
   #
   # @return nil
   def clear_everything_for_tests()
-    unsafe_clear(true, true)
-    @global_defaults_initialized = false
-    @app_defaults_initialized = false
+    @sync.synchronize do
+      unsafe_clear(true, true)
+      @global_defaults_initialized = false
+      @app_defaults_initialized = false
+    end
   end
   private :clear_everything_for_tests
 

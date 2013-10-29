@@ -1,7 +1,7 @@
 module Puppet
   # The base class for all Puppet errors. It can wrap another exception
   class Error < RuntimeError
-    attr_accessor :original
+    attr_reader :original
     def initialize(message, original=nil)
       super(message)
       @original = original

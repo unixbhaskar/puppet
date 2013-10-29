@@ -6,10 +6,6 @@ require 'puppet/util/log'
 describe Puppet::Util::Log do
   include PuppetSpec::Files
 
-  def log_notice(message)
-    Puppet::Util::Log.new(:level => :notice, :message => message)
-  end
-
   it "should write a given message to the specified destination" do
     arraydest = []
     Puppet::Util::Log.newdestination(Puppet::Test::LogCollector.new(arraydest))
@@ -43,57 +39,6 @@ describe Puppet::Util::Log do
     end
   end
 
-  describe "#with_destination" do
-    it "does nothing when nested" do
-      logs = []
-      destination = Puppet::Test::LogCollector.new(logs)
-      Puppet::Util::Log.with_destination(destination) do
-        Puppet::Util::Log.with_destination(destination) do
-          log_notice("Inner block")
-        end
-
-        log_notice("Outer block")
-      end
-
-      log_notice("Outside")
-
-      expect(logs.collect(&:message)).to include("Inner block", "Outer block")
-      expect(logs.collect(&:message)).not_to include("Outside")
-    end
-
-    it "logs when called a second time" do
-      logs = []
-      destination = Puppet::Test::LogCollector.new(logs)
-
-      Puppet::Util::Log.with_destination(destination) do
-        log_notice("First block")
-      end
-
-      log_notice("Between blocks")
-
-      Puppet::Util::Log.with_destination(destination) do
-        log_notice("Second block")
-      end
-
-      expect(logs.collect(&:message)).to include("First block", "Second block")
-      expect(logs.collect(&:message)).not_to include("Between blocks")
-    end
-
-    it "doesn't close the destination if already set manually" do
-      logs = []
-      destination = Puppet::Test::LogCollector.new(logs)
-
-      Puppet::Util::Log.newdestination(destination)
-      Puppet::Util::Log.with_destination(destination) do
-        log_notice "Inner block"
-      end
-
-      log_notice "Outer block"
-      Puppet::Util::Log.close(destination)
-
-      expect(logs.collect(&:message)).to include("Inner block", "Outer block")
-    end
-  end
   describe Puppet::Util::Log::DestConsole do
     before do
       @console = Puppet::Util::Log::DestConsole.new
@@ -302,37 +247,34 @@ describe Puppet::Util::Log do
     end
 
     describe "when setting the source as a RAL object" do
-      let(:path) { File.expand_path('/foo/bar') }
-
       it "should tag itself with any tags the source has" do
-        source = Puppet::Type.type(:file).new :path => path
+        source = Puppet::Type.type(:file).new :path => make_absolute("/foo/bar")
         log = Puppet::Util::Log.new(:level => "notice", :message => :foo, :source => source)
         source.tags.each do |tag|
           log.tags.should be_include(tag)
         end
       end
 
-      it "should set the source to 'path', when available" do
-        source = Puppet::Type.type(:file).new :path => path
-        source.tags = ["tag", "tag2"]
+      it "should use the source_descriptors" do
+        source = stub "source"
+        source.stubs(:source_descriptors).returns(:tags => ["tag","tag2"], :path => "path", :version => 100)
 
         log = Puppet::Util::Log.new(:level => "notice", :message => :foo)
-        log.expects(:tag).with("file")
         log.expects(:tag).with("tag")
         log.expects(:tag).with("tag2")
 
         log.source = source
 
-        log.source.should == "/File[#{path}]"
+        log.source.should == "path"
       end
 
       it "should copy over any file and line information" do
-        source = Puppet::Type.type(:file).new :path => path
+        source = Puppet::Type.type(:file).new :path => make_absolute("/foo/bar")
         source.file = "/my/file"
         source.line = 50
         log = Puppet::Util::Log.new(:level => "notice", :message => :foo, :source => source)
-        log.line.should == 50
         log.file.should == "/my/file"
+        log.line.should == 50
       end
     end
 
@@ -361,18 +303,5 @@ describe Puppet::Util::Log do
       log.to_yaml_properties.should include(:@file)
       log.to_yaml_properties.should include(:@line)
     end
-  end
-
-  it "should round trip through pson" do
-    log = Puppet::Util::Log.new(:level => 'notice', :message => 'hooray', :file => 'thefile', :line => 1729, :source => 'specs', :tags => ['a', 'b', 'c'])
-    tripped = Puppet::Util::Log.from_pson(PSON.parse(log.to_pson))
-
-    tripped.file.should == log.file
-    tripped.line.should == log.line
-    tripped.level.should == log.level
-    tripped.message.should == log.message
-    tripped.source.should == log.source
-    tripped.tags.should == log.tags
-    tripped.time.should == log.time
   end
 end

@@ -289,15 +289,9 @@ describe Puppet::Settings do
       @settings.define_settings :mysection,
           :one => { :default => "whah", :desc => "yay" },
           :two => { :default => "$one yay", :desc => "bah" }
-      @settings.expects(:unsafe_flush_cache)
       @settings[:two].should == "whah yay"
       @settings.handlearg("--one", "else")
       @settings[:two].should == "else yay"
-    end
-
-    it "should clear the cache when the preferred_run_mode is changed" do
-      @settings.expects(:flush_cache)
-      @settings.preferred_run_mode = :master
     end
 
     it "should not clear other values when setting getopt-specific values" do
@@ -1005,7 +999,17 @@ describe Puppet::Settings do
       @settings.stubs(:user_config_file).returns(@userconfig)
     end
 
-    it "does not create the WatchedFile instance and should not parse if the file does not exist" do
+    it "should use a WatchedFile instance to determine if the file has changed" do
+      file = mock 'file'
+      Puppet::Util::WatchedFile.expects(:new).with(@file).returns file
+
+      file.expects(:changed?)
+
+      @settings.stubs(:parse)
+      @settings.reparse_config_files
+    end
+
+    it "should not create the WatchedFile instance and should not parse if the file does not exist" do
       FileTest.expects(:exist?).with(@file).returns false
       Puppet::Util::WatchedFile.expects(:new).never
 
@@ -1014,44 +1018,46 @@ describe Puppet::Settings do
       @settings.reparse_config_files
     end
 
-    context "and watched file exists" do
-      before do
-        @watched_file = Puppet::Util::WatchedFile.new(@file)
-        Puppet::Util::WatchedFile.expects(:new).with(@file).returns @watched_file
-      end
+    it "should not reparse if the file has not changed" do
+      file = mock 'file'
+      Puppet::Util::WatchedFile.expects(:new).with(@file).returns file
 
-      it "uses a WatchedFile instance to determine if the file has changed" do
-        @watched_file.expects(:changed?)
+      file.expects(:changed?).returns false
 
-        @settings.reparse_config_files
-      end
+      @settings.expects(:parse_config_files).never
 
-      it "does not reparse if the file has not changed" do
-        @watched_file.expects(:changed?).returns false
+      @settings.reparse_config_files
+    end
 
-        @settings.expects(:parse_config_files).never
+    it "should reparse if the file has changed" do
+      file = stub 'file', :file => @file
+      Puppet::Util::WatchedFile.expects(:new).with(@file).returns file
 
-        @settings.reparse_config_files
-      end
+      file.expects(:changed?).returns true
 
-      it "reparses if the file has changed" do
-        @watched_file.expects(:changed?).returns true
+      @settings.expects(:parse_config_files)
 
-        @settings.expects(:unsafe_parse).with(@file)
+      @settings.reparse_config_files
+    end
 
-        @settings.reparse_config_files
-      end
+    it "should replace in-memory values with on-file values" do
+      # Init the value
+      text = "[main]\none = disk-init\n"
+      file = mock 'file'
+      file.stubs(:changed?).returns(true)
+      file.stubs(:file).returns(@file)
+      @settings[:one] = "init"
+      @settings.files = [file]
 
-      it "replaces in-memory values with on-file values" do
-        @watched_file.stubs(:changed?).returns(true)
-        @settings[:one] = "init"
+      # Now replace the value
+      text = "[main]\none = disk-replace\n"
 
-        # Now replace the value
-        text = "[main]\none = disk-replace\n"
-        @settings.stubs(:read_file).returns(text)
-        @settings.reparse_config_files
-        @settings[:one].should == "disk-replace"
-      end
+      # This is kinda ridiculous - the reason it parses twice is that
+      # it goes to parse again when we ask for the value, because the
+      # mock always says it should get reparsed.
+      @settings.stubs(:read_file).returns(text)
+      @settings.reparse_config_files
+      @settings[:one].should == "disk-replace"
     end
 
     it "should retain parameters set by cli when configuration files are reparsed" do

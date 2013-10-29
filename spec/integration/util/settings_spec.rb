@@ -10,27 +10,23 @@ describe Puppet::Settings do
     { :noop => {:default => false, :desc => "noop"} }
   end
 
-  def define_settings(section, settings_hash)
-    settings.define_settings(section, minimal_default_settings.update(settings_hash))
-  end
-
-  let(:settings) { Puppet::Settings.new }
-
   it "should be able to make needed directories" do
-    define_settings(:main,
-      :maindir => {
-          :default => tmpfile("main"),
-          :type => :directory,
-          :desc => "a",
-      }
+    settings = Puppet::Settings.new
+    settings.define_settings :main, minimal_default_settings.update(
+        :maindir => {
+            :default => tmpfile("main"),
+            :type => :directory,
+            :desc => "a",
+        }
     )
     settings.use(:main)
 
-    expect(File.directory?(settings[:maindir])).to be_true
+    File.should be_directory(settings[:maindir])
   end
 
   it "should make its directories with the correct modes" do
-    define_settings(:main,
+    settings = Puppet::Settings.new
+    settings.define_settings :main,  minimal_default_settings.update(
         :maindir => {
             :default => tmpfile("main"),
             :type => :directory,
@@ -41,49 +37,6 @@ describe Puppet::Settings do
 
     settings.use(:main)
 
-    expect(File.stat(settings[:maindir]).mode & 007777).to eq(Puppet.features.microsoft_windows? ? 0755 : 0750)
-  end
-
-  it "reparses configuration if configuration file is touched", :if => !Puppet.features.microsoft_windows? do
-    config = tmpfile("config")
-    define_settings(:main,
-      :config => {
-        :type => :file,
-        :default => config,
-        :desc => "a"
-      },
-      :environment => {
-        :default => 'dingos',
-        :desc => 'test',
-      }
-    )
-
-    Puppet[:filetimeout] = '1s'
-
-    File.open(config, 'w') do |file|
-      file.puts <<-EOF
-[main]
-environment=toast
-      EOF
-    end
-
-    settings.initialize_global_settings
-    expect(settings[:environment]).to eq('toast')
-
-    # First reparse establishes WatchedFiles
-    settings.reparse_config_files
-
-    sleep 1
-
-    File.open(config, 'w') do |file|
-      file.puts <<-EOF
-[main]
-environment=bacon
-      EOF
-    end
-
-    # Second reparse if later than filetimeout, reparses if changed
-    settings.reparse_config_files
-    expect(settings[:environment]).to eq('bacon')
+    (File.stat(settings[:maindir]).mode & 007777).should == (Puppet.features.microsoft_windows? ? 0755 : 0750)
   end
 end

@@ -1,3 +1,6 @@
+# The majority of Puppet's configuration settings are set in this file.
+
+
 module Puppet
 
   def self.default_diffargs
@@ -243,19 +246,6 @@ module Puppet
       :desc    => "The hiera configuration file. Puppet only reads this file on startup, so you must restart the puppet master every time you edit it.",
       :type    => :file,
     },
-    :binder => {
-      :default => false,
-      :desc    => "Turns the binding system on or off. This includes hiera-2 and data in modules.  The binding system aggregates data from
-      modules and other locations and makes them available for lookup.  The binding system is experimental and any or all of it may change.",
-      :type    => :boolean,
-    },
-    :binder_config => {
-      :default => nil,
-      :desc    => "The binder configuration file. Puppet reads this file on each request to configure the bindings system.
-      If set to nil (the default), a $confdir/binder_config.yaml is optionally loaded. If it does not exists, a default configuration
-      is used. If the setting :binding_config is specified, it must reference a valid and existing yaml file.",
-      :type    => :file,
-    },
     :catalog_terminus => {
       :type       => :terminus,
       :default    => "compiler",
@@ -336,7 +326,7 @@ module Puppet
       Requires that `puppet queue` be running.",
         :hook     => proc do |value|
           if value
-            # This reconfigures the termini for Node, Facts, and Catalog
+            # This reconfigures the terminii for Node, Facts, and Catalog
             Puppet.settings[:storeconfigs] = true
 
             # But then we modify the configuration
@@ -403,10 +393,6 @@ module Puppet
     :module_working_dir => {
         :default  => '$vardir/puppet-module',
         :desc     => "The directory into which module tool data is stored",
-    },
-    :module_skeleton_dir => {
-        :default  => '$module_working_dir/skeleton',
-        :desc     => "The directory which the skeleton for module tool generate is stored.",
     }
   )
 
@@ -554,6 +540,16 @@ EOT
       :owner => "service",
       :desc => "Where each client stores the CA certificate."
     },
+    ## JJM - The ssl_client_ca_chain setting is commented out because it is
+    # intended for (#3143) and is not expected to be used until CA chaining is
+    # supported.
+    # :ssl_client_ca_chain => {
+    #   :type  => :file,
+    #   :mode  => 0644,
+    #   :owner => "service",
+    #   :desc  => "The list of CA certificate to complete the chain of trust to CA certificates \n" <<
+    #             "listed in the ssl_client_ca_auth file."
+    # },
     :ssl_client_ca_auth => {
       :type  => :file,
       :mode  => 0644,
@@ -563,6 +559,16 @@ EOT
                 "listed in this file.  If this setting has no value then the Puppet master's CA \n" <<
                 "certificate (localcacert) will be used."
     },
+    ## JJM - The ssl_server_ca_chain setting is commented out because it is
+    # intended for (#3143) and is not expected to be used until CA chaining is
+    # supported.
+    # :ssl_server_ca_chain => {
+    #   :type  => :file,
+    #   :mode  => 0644,
+    #   :owner => "service",
+    #   :desc  => "The list of CA certificate to complete the chain of trust to CA certificates \n" <<
+    #             "listed in the ssl_server_ca_auth file."
+    # },
     :ssl_server_ca_auth => {
       :type  => :file,
       :mode  => 0644,
@@ -1025,12 +1031,6 @@ EOT
     :desc         => "Boolean; whether puppet agent should ignore schedules.  This is useful
       for initial puppet agent runs.",
     },
-    :default_schedules => {
-      :default    => true,
-      :type       => :boolean,
-      :desc       => "Boolean; whether to generate the default schedule resources. Setting this to
-      false is useful for keeping external report processors clean of skipped schedule resources.",
-    },
     :puppetport => {
       :default    => 8139,
       :desc       => "Which port puppet agent listens on.",
@@ -1086,24 +1086,6 @@ EOT
       instances will be serialized using this method, since not all classes
       can be guaranteed to support this format, but it will be used for all
       classes that support it.",
-    },
-    :report_serialization_format => {
-      :default => "pson",
-      :type => :enum,
-      :values => ["pson", "yaml"],
-      :desc => "The serialization format to use when sending reports to the
-      `report_server`. Possible values are `pson` and `yaml`. This setting
-      affects puppet agent, but not puppet apply (which processes its own
-      reports).
-
-      This should almost always be set to `pson`. It can be temporarily set to
-      `yaml` to let agents using this Puppet version connect to a puppet master
-      running Puppet 3.0.0 through 3.2.4.",
-      :hook => proc do |value|
-        if value == "yaml"
-          Puppet.deprecation_warning("Sending reports in 'yaml' is deprecated; use 'pson' instead.")
-        end
-      end
     },
     :agent_catalog_run_lockfile => {
       :default    => "$statedir/agent_catalog_run.lock",
@@ -1253,26 +1235,6 @@ EOT
       turn off waiting for certificates by specifying a time of 0, in which case
       puppet agent will exit if it cannot get a cert.
       #{AS_DURATION}",
-    },
-    :ordering => {
-      :type => :enum,
-      :values => ["manifest", "title-hash", "random"],
-      :default => "title-hash",
-      :desc => "How unrelated resources should be ordered when applying a catalog.
-      Allowed values are `title-hash`, `manifest`, and `random`. This
-      setting affects puppet agent and puppet apply, but not puppet master.
-
-      * `title-hash` (the default) will order resources randomly, but will use
-        the same order across runs and across nodes.
-      * `manifest` will use the order in which the resources were declared in
-        their manifest files.
-      * `random` will order resources randomly and change their order with each
-        run. This can work like a fuzzer for shaking out undeclared dependencies.
-
-      Regardless of this setting's value, Puppet will always obey explicit
-      dependencies set with the before/require/notify/subscribe metaparameters
-      and the `->`/`~>` chaining arrows; this setting only affects the relative
-      ordering of _unrelated_ resources."
     }
   )
 

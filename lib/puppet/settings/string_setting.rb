@@ -1,3 +1,6 @@
+# The base element type.
+require 'puppet/settings/base_setting'
+
 class Puppet::Settings::StringSetting < Puppet::Settings::BaseSetting
   def type
     :string

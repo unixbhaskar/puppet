@@ -38,7 +38,7 @@ describe Puppet::Parser::Functions do
     end
 
     it "should raise an error if the function type is not correct" do
-      expect { Puppet::Parser::Functions.newfunction("name", :type => :unknown) { |args| } }.to raise_error Puppet::DevError, "Invalid statement type :unknown"
+      lambda { Puppet::Parser::Functions.newfunction("name", :type => :unknown) { |args| } }.should raise_error Puppet::DevError, "Invalid statement type :unknown"
     end
 
     it "instruments the function to profiles the execution" do
@@ -85,32 +85,32 @@ describe Puppet::Parser::Functions do
 
     it "should raise an error if the function is called with too many arguments" do
       Puppet::Parser::Functions.newfunction("name", :arity => 2) { |args| }
-      expect { callable_functions_from(function_module).function_name([1,2,3]) }.to raise_error ArgumentError
+      lambda { callable_functions_from(function_module).function_name([1,2,3]) }.should raise_error ArgumentError
     end
 
     it "should raise an error if the function is called with too few arguments" do
       Puppet::Parser::Functions.newfunction("name", :arity => 2) { |args| }
-      expect { callable_functions_from(function_module).function_name([1]) }.to raise_error ArgumentError
+      lambda { callable_functions_from(function_module).function_name([1]) }.should raise_error ArgumentError
     end
 
     it "should not raise an error if the function is called with correct number of arguments" do
       Puppet::Parser::Functions.newfunction("name", :arity => 2) { |args| }
-      expect { callable_functions_from(function_module).function_name([1,2]) }.to_not raise_error
+      lambda { callable_functions_from(function_module).function_name([1,2]) }.should_not raise_error ArgumentError
     end
 
     it "should raise an error if the variable arg function is called with too few arguments" do
       Puppet::Parser::Functions.newfunction("name", :arity => -3) { |args| }
-      expect { callable_functions_from(function_module).function_name([1]) }.to raise_error ArgumentError
+      lambda { callable_functions_from(function_module).function_name([1]) }.should raise_error ArgumentError
     end
 
     it "should not raise an error if the variable arg function is called with correct number of arguments" do
       Puppet::Parser::Functions.newfunction("name", :arity => -3) { |args| }
-      expect { callable_functions_from(function_module).function_name([1,2]) }.to_not raise_error
+      lambda { callable_functions_from(function_module).function_name([1,2]) }.should_not raise_error ArgumentError
     end
 
     it "should not raise an error if the variable arg function is called with more number of arguments" do
       Puppet::Parser::Functions.newfunction("name", :arity => -3) { |args| }
-      expect { callable_functions_from(function_module).function_name([1,2,3]) }.to_not raise_error
+      lambda { callable_functions_from(function_module).function_name([1,2,3]) }.should_not raise_error ArgumentError
     end
   end
 
@@ -128,7 +128,7 @@ describe Puppet::Parser::Functions do
 
   describe "::get_function" do
     it "can retrieve a function defined on the *root* environment" do
-      $environment = nil
+      Thread.current[:environment] = nil
       function = Puppet::Parser::Functions.newfunction("atest", :type => :rvalue) do
         nil
       end
@@ -162,7 +162,7 @@ describe Puppet::Parser::Functions do
 
   describe "::merged_functions" do
     it "returns functions in both the current and root environment" do
-      $environment = nil
+      Thread.current[:environment] = nil
       func_a = Puppet::Parser::Functions.newfunction("test_a", :type => :rvalue) do
         nil
       end

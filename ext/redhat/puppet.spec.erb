@@ -37,8 +37,9 @@ BuildRoot:      %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 BuildRequires:  facter < 1:2.0
 # Puppet 3.x drops ruby 1.8.5 support and adds ruby 1.9 support
 BuildRequires:  ruby >= 1.8.7
+
 BuildArch:      noarch
-Requires:       ruby >= 1.8
+Requires:       ruby(abi) >= 1.8
 Requires:       ruby-shadow
 
 # Pull in ruby selinux bindings where available
@@ -55,7 +56,7 @@ Requires:       facter >= 1.6.11
 # Ruby 1.8.7 available for el5 at: yum.puppetlabs.com/el/5/devel/$ARCH
 Requires:       ruby >= 1.8.7
 Requires:       hiera >= 1.0.0
-Requires:       ruby-rgen >= 0.6.5
+Requires:       ruby-rgen
 Obsoletes:      hiera-puppet < 1.0.0
 Provides:       hiera-puppet >= 1.0.0
 %{!?_without_augeas:Requires: ruby-augeas}
@@ -66,11 +67,6 @@ Requires:       shadow-utils
 %if 0%{?_with_systemd}
 # Required for %%post, %%preun, %%postun
 Requires:       systemd
-%if 0%{?fedora} >= 18
-BuildRequires:  systemd
-%else
-BuildRequires:  systemd-units
-%endif
 %else
 # Required for %%post and %%preun
 Requires:       chkconfig
@@ -98,6 +94,7 @@ The server can also function as a certificate authority and file server.
 
 %prep
 %setup -q -n %{name}-%{realversion}
+patch -s -p1 < ext/redhat/rundir-perms.patch
 
 
 %build
@@ -393,9 +390,6 @@ rm -rf %{buildroot}
 %changelog
 * <%= Time.now.strftime("%a %b %d %Y") %> Puppet Labs Release <info@puppetlabs.com> -  <%= @rpmversion %>-<%= @rpmrelease %>
 - Build for <%= @version %>
-
-* Thu Jun 27 2013 Matthaus Owens <matthaus@puppetlabs.com> - 3.2.3-0.1rc0
-- Bump requires on ruby-rgen to 0.6.5
 
 * Fri Apr 12 2013 Matthaus Owens <matthaus@puppetlabs.com> - 3.2.0-0.1rc0
 - Add requires on ruby-rgen for new parser in Puppet 3.2

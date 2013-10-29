@@ -46,8 +46,6 @@ class Puppet::Daemon
 
     Process.setsid
     Dir.chdir("/")
-
-    close_streams
   end
 
   # Close stdin/stdout/stderr so that we can finish our transition into 'daemon' mode.
@@ -138,6 +136,12 @@ class Puppet::Daemon
     # Start the listening server, if required.
     server.start if server
 
+    # now that the server has started, we've waited just about as long as possible to close
+    #  our streams and become a "real" daemon process.  This is in hopes of allowing
+    #  errors to have the console available as a fallback for logging for as long as
+    #  possible.
+    close_streams if Puppet[:daemonize]
+
     # Finally, loop forever running events - or, at least, until we exit.
     run_event_loop
 
@@ -149,12 +153,16 @@ class Puppet::Daemon
   # Create a pidfile for our daemon, so we can be stopped and others
   # don't try to start.
   def create_pidfile
-    raise "Could not create PID file: #{@pidfile.file_path}" unless @pidfile.lock
+    Puppet::Util.synchronize_on(Puppet.run_mode.name,Sync::EX) do
+      raise "Could not create PID file: #{@pidfile.file_path}" unless @pidfile.lock
+    end
   end
 
   # Remove the pid file for our daemon.
   def remove_pidfile
-    @pidfile.unlock
+    Puppet::Util.synchronize_on(Puppet.run_mode.name,Sync::EX) do
+      @pidfile.unlock
+    end
   end
 
   def run_event_loop

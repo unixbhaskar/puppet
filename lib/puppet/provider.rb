@@ -185,7 +185,7 @@ class Puppet::Provider
   # is lazy (when a resource is evaluated) and the absence of commands
   # that will be present after other resources have been applied no longer needs to be specified as
   # optional.
-  # @param [Hash{String => String}] hash Named commands that the provider will
+  # @param [Hash{String => String}] command_specs Named commands that the provider will
   #   be executing on the system. Each command is specified with a name and the path of the executable.
   # (@see #has_command)
   # @see commands
@@ -485,7 +485,7 @@ class Puppet::Provider
     if @defaults.length > 0
       return "Default for " + @defaults.collect do |f, v|
         "`#{f}` == `#{[v].flatten.join(', ')}`"
-      end.sort.join(" and ") + "."
+      end.join(" and ") + "."
     end
   end
 
@@ -493,7 +493,7 @@ class Puppet::Provider
     if @commands.length > 0
       return "Required binaries: " + @commands.collect do |n, c|
         "`#{c}`"
-      end.sort.join(", ") + "."
+      end.join(", ") + "."
     end
   end
 
@@ -501,7 +501,7 @@ class Puppet::Provider
     if features.length > 0
       return "Supported features: " + features.collect do |f|
         "`#{f}`"
-      end.sort.join(", ") + "."
+      end.join(", ") + "."
     end
   end
 
@@ -564,7 +564,7 @@ class Puppet::Provider
 
   # Sets the given parameters values as the current values for those parameters.
   # Other parameters are unchanged.
-  # @param [Array<Puppet::Parameter>] params the parameters with values that should be set
+  # @param [Array<Puppet::Parameter] the parameters with values that should be set
   # @return [void]
   #
   def set(params)

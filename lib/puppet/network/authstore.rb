@@ -82,20 +82,21 @@ module Puppet
     end
 
     def interpolate(match)
-      @modified_declarations = @declarations.collect { |ace| ace.interpolate(match) }.sort
+      Thread.current[:declarations] = @declarations.collect { |ace| ace.interpolate(match) }.sort
     end
 
     def reset_interpolation
-      @modified_declarations = nil
+      Thread.current[:declarations] = nil
     end
 
     private
 
-    # Returns our ACEs list, but if we have a modification of it, let's return
-    # it. This is used if we want to override the this purely immutable list
-    # by a modified version.
+    # returns our ACEs list, but if we have a modification of it
+    # in our current thread, let's return it
+    # this is used if we want to override the this purely immutable list
+    # by a modified version in a multithread safe way.
     def declarations
-      @modified_declarations || @declarations
+      Thread.current[:declarations] || @declarations
     end
 
     # Store the results of a pattern into our hash.  Basically just
@@ -231,7 +232,7 @@ module Puppet
         name.downcase.split(".").reverse
       end
 
-      # Parse our input pattern and figure out what kind of allowable
+      # Parse our input pattern and figure out what kind of allowal
       # statement it is.  The output of this is used for later matching.
       Octet = '(\d|[1-9]\d|1\d\d|2[0-4]\d|25[0-5])'
       IPv4 = "#{Octet}\.#{Octet}\.#{Octet}\.#{Octet}"
@@ -245,7 +246,7 @@ module Puppet
       def parse_ip(value)
         @name = :ip
         @exact, @length, @pattern = *case value
-        when /^(?:#{IP})\/(\d+)$/                                 # 12.34.56.78/24, a001:b002::efff/120, c444:1000:2000::9:192.168.0.1/112
+        when /^(?:#{IP})\/(\d+)$/                                   # 12.34.56.78/24, a001:b002::efff/120, c444:1000:2000::9:192.168.0.1/112
           [:inexact, $1.to_i, IPAddr.new(value)]
         when /^(#{IP})$/                                          # 10.20.30.40,
           [:exact, nil, IPAddr.new(value)]

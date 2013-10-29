@@ -154,13 +154,11 @@ describe Puppet::Type.type(:exec) do
     foo = make_absolute('/bin/foo')
     catalog = Puppet::Resource::Catalog.new
     tmp = Puppet::Type.type(:file).new(:name => foo)
-    execer = Puppet::Type.type(:exec).new(:name => foo)
-
     catalog.add_resource tmp
+    execer = Puppet::Type.type(:exec).new(:name => foo)
     catalog.add_resource execer
-    dependencies = execer.autorequire(catalog)
 
-    dependencies.collect(&:to_s).should == [Puppet::Relationship.new(tmp, execer).to_s]
+    catalog.relationship_graph.dependencies(execer).should == [tmp]
   end
 
   describe "when handling the path parameter" do

@@ -7,6 +7,9 @@ class Puppet::Interface
 
       # We need to identify an indent: the minimum number of whitespace
       # characters at the start of any line in the text.
+      #
+      # Using split rather than each_line is because the later only takes a
+      # block on Ruby 1.8.5 / Centos, and we support that. --daniel 2011-05-03
       indent = text.split(/\n/).map {|x| x.index(/[^\s]/) }.compact.min
 
       if indent > 0 then
@@ -130,11 +133,11 @@ class Puppet::Interface
     #   Sets examples.
     #   @param text [String] Example text
     #   @api public
-    #   @return [void]
+    #   @returns [void]
     #   @dsl Faces
     # @overload examples
     #   Returns documentation of examples
-    #   @return [String] The examples
+    #   @returns [String] The examples
     #   @api private
     attr_doc :examples
 
@@ -143,11 +146,11 @@ class Puppet::Interface
     #   Sets optional notes.
     #   @param text [String] The notes
     #   @api public
-    #   @return [void]
+    #   @returns [void]
     #   @dsl Faces
     # @overload notes
     #   Returns any optional notes
-    #   @return [String] The notes
+    #   @returns [String] The notes
     #   @api private
     attr_doc :notes
 
@@ -156,11 +159,11 @@ class Puppet::Interface
     #   Sets the license text
     #   @param text [String] the license text
     #   @api public
-    #   @return [void]
+    #   @returns [void]
     #   @dsl Faces
     # @overload license
     #   Returns the license
-    #   @return [String] The license
+    #   @returns [String] The license
     #   @api private
     attr_doc :license
 

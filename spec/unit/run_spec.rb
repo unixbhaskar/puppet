@@ -122,54 +122,19 @@ describe Puppet::Run do
   end
 
   describe ".from_pson" do
-    it "should read from a hash that represents the 'options' to initialize" do
+    it "should accept a hash of options, and pass them with symbolified keys to new" do
       options = {
         "tags" => "whatever",
         "background" => true,
-        "ignoreschedules" => false,
       }
-      run = Puppet::Run.from_pson(options)
 
-      run.options.should == {
+      Puppet::Run.expects(:new).with({
         :tags => "whatever",
-        :pluginsync => Puppet[:pluginsync],
-        :ignoreschedules => false,
-      }
-      run.background.should be_true
-    end
+        :background => true,
+        :pluginsync => Puppet[:pluginsync]
+      })
 
-    it "should read from a hash that follows the actual object structure" do
-      hash = {"background" => true,
-              "options" => {
-                "pluginsync" => true,
-                "tags" => [],
-                "ignoreschedules" => false},
-              "status" => "success"}
-      run = Puppet::Run.from_pson(hash)
-
-      run.options.should == {
-        :pluginsync => true,
-        :tags => [],
-        :ignoreschedules => false
-      }
-      run.background.should be_true
-      run.status.should == 'success'
-    end
-
-    it "should round trip through pson" do
-      run = Puppet::Run.new(
-        :tags => ['a', 'b', 'c'],
-        :ignoreschedules => true,
-        :pluginsync => false,
-        :background => true
-      )
-      run.instance_variable_set(:@status, true)
-
-      tripped = Puppet::Run.convert_from(:pson, run.render(:pson))
-
-      tripped.options.should == run.options
-      tripped.status.should == run.status
-      tripped.background.should == run.background
+      Puppet::Run.from_pson(options)
     end
   end
 end

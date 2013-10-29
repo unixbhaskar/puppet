@@ -23,6 +23,21 @@ describe 'function for dynamically creating resources' do
     expect { @scope.function_create_resources(['foo', 'bar', 'blah', 'baz']) }.to raise_error(ArgumentError, 'create_resources(): wrong number of arguments (4; must be 2 or 3)')
   end
 
+  describe 'when the caller does not supply a name parameter' do
+    it 'should set a default resource name equal to the resource title' do
+      Puppet::Parser::Resource.any_instance.expects(:set_parameter).with(:name, 'test').once
+      @scope.function_create_resources(['notify', {'test'=>{}}])
+    end
+  end
+
+  describe 'when the caller supplies a name parameter' do
+    it 'should set the resource name to the value provided' do
+      Puppet::Parser::Resource.any_instance.expects(:set_parameter).with(:name, 'user_supplied').once
+      Puppet::Parser::Resource.any_instance.expects(:set_parameter).with(:name, 'test').never
+      @scope.function_create_resources(['notify', {'test'=>{'name' => 'user_supplied'}}])
+    end
+  end
+
   describe 'when creating native types' do
     it 'empty hash should not cause resources to be added' do
       noop_catalog = compile_to_catalog("create_resources('file', {})")
@@ -53,13 +68,12 @@ describe 'function for dynamically creating resources' do
     end
 
     it 'should fail to add non-existing type' do
-      expect do
-        @scope.function_create_resources(['create-resource-foo', { 'foo' => {} }])
-      end.to raise_error(ArgumentError, /Invalid resource type create-resource-foo/)
+      expect { @scope.function_create_resources(['create-resource-foo', {}]) }.to raise_error(ArgumentError, 'could not create resource of unknown type create-resource-foo')
     end
 
     it 'should be able to add edges' do
-      rg = compile_to_relationship_graph("notify { test: }\n create_resources('notify', {'foo'=>{'require'=>'Notify[test]'}})")
+      catalog = compile_to_catalog("notify { test: }\n create_resources('notify', {'foo'=>{'require'=>'Notify[test]'}})")
+      rg = catalog.to_ral.relationship_graph
       test  = rg.vertices.find { |v| v.title == 'test' }
       foo   = rg.vertices.find { |v| v.title == 'foo' }
       test.must be
@@ -73,14 +87,13 @@ describe 'function for dynamically creating resources' do
       catalog.resource(:file, "/etc/baz")['group'].should == 'food'
     end
   end
-
   describe 'when dynamically creating resource types' do
-    it 'should be able to create defined resource types' do
+    it 'should be able to create defined resoure types' do
       catalog = compile_to_catalog(<<-MANIFEST)
         define foocreateresource($one) {
           notify { $name: message => $one }
         }
-
+        
         create_resources('foocreateresource', {'blah'=>{'one'=>'two'}})
       MANIFEST
       catalog.resource(:notify, "blah")['message'].should == 'two'
@@ -92,7 +105,7 @@ describe 'function for dynamically creating resources' do
           define foocreateresource($one) {
             notify { $name: message => $one }
           }
-
+          
           create_resources('foocreateresource', {'blah'=>{}})
         MANIFEST
       }.to raise_error(Puppet::Error, 'Must pass one to Foocreateresource[blah] on node foonode')
@@ -103,7 +116,7 @@ describe 'function for dynamically creating resources' do
         define foocreateresource($one) {
           notify { $name: message => $one }
         }
-
+        
         create_resources('foocreateresource', {'blah'=>{'one'=>'two'}, 'blaz'=>{'one'=>'three'}})
       MANIFEST
 
@@ -112,21 +125,23 @@ describe 'function for dynamically creating resources' do
     end
 
     it 'should be able to add edges' do
-      rg = compile_to_relationship_graph(<<-MANIFEST)
+      catalog = compile_to_catalog(<<-MANIFEST)
         define foocreateresource($one) {
           notify { $name: message => $one }
         }
 
         notify { test: }
-
+        
         create_resources('foocreateresource', {'blah'=>{'one'=>'two', 'require' => 'Notify[test]'}})
       MANIFEST
 
+      rg = catalog.to_ral.relationship_graph
       test = rg.vertices.find { |v| v.title == 'test' }
       blah = rg.vertices.find { |v| v.title == 'blah' }
       test.must be
       blah.must be
       rg.path_between(test,blah).should be
+      catalog.resource(:notify, "blah")['message'].should == 'two'
     end
 
     it 'should account for default values' do
@@ -157,15 +172,15 @@ describe 'function for dynamically creating resources' do
     end
 
     it 'should fail to create non-existing classes' do
-      expect do
+      expect {
         compile_to_catalog(<<-MANIFEST)
           create_resources('class', {'blah'=>{'one'=>'two'}})
         MANIFEST
-      end.to raise_error(Puppet::Error, 'Could not find declared class blah at line 1 on node foonode')
+      }.to raise_error(Puppet::Error ,'could not find hostclass blah at line 1 on node foonode')
     end
 
     it 'should be able to add edges' do
-      rg = compile_to_relationship_graph(<<-MANIFEST)
+      catalog = compile_to_catalog(<<-MANIFEST)
         class bar($one) {
           notify { test: message => $one }
         }
@@ -175,6 +190,7 @@ describe 'function for dynamically creating resources' do
         create_resources('class', {'bar'=>{'one'=>'two', 'require' => 'Notify[tester]'}})
       MANIFEST
 
+      rg = catalog.to_ral.relationship_graph
       test   = rg.vertices.find { |v| v.title == 'test' }
       tester = rg.vertices.find { |v| v.title == 'tester' }
       test.must be

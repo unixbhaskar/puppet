@@ -5,12 +5,12 @@ require 'puppet/external/lock'
 require 'puppet/error'
 require 'puppet/util/execution_stub'
 require 'uri'
+require 'sync'
+require 'monitor'
 require 'tempfile'
 require 'pathname'
 require 'ostruct'
 require 'puppet/util/platform'
-require 'puppet/util/symbolic_file_mode'
-require 'securerandom'
 
 module Puppet
 module Util
@@ -22,7 +22,8 @@ module Util
   require 'puppet/util/posix'
   extend Puppet::Util::POSIX
 
-  extend Puppet::Util::SymbolicFileMode
+  @@sync_objects = {}.extend MonitorMixin
+
 
   def self.activerecord_version
     if (defined?(::ActiveRecord) and defined?(::ActiveRecord::VERSION) and defined?(::ActiveRecord::VERSION::MAJOR) and defined?(::ActiveRecord::VERSION::MINOR))
@@ -61,6 +62,20 @@ module Util
     end
   end
 
+
+  def self.synchronize_on(x,type)
+    sync_object,users = 0,1
+    begin
+      @@sync_objects.synchronize {
+        (@@sync_objects[x] ||= [Sync.new,0])[users] += 1
+      }
+      @@sync_objects[x][sync_object].synchronize(type) { yield }
+    ensure
+      @@sync_objects.synchronize {
+        @@sync_objects.delete(x) unless (@@sync_objects[x][users] -= 1) > 0
+      }
+    end
+  end
 
   # Change the process to a different user
   def self.chuser
@@ -135,6 +150,7 @@ module Util
     end
   end
 
+
   def benchmark(*args)
     msg = args.pop
     level = args.pop
@@ -167,7 +183,6 @@ module Util
       yield
     end
   end
-  module_function :benchmark
 
   # Resolve a path for an executable to the absolute path. This tries to behave
   # in the same manner as the unix `which` command and uses the `PATH`
@@ -301,6 +316,13 @@ module Util
   end
   module_function :safe_posix_fork
 
+  # Create an exclusive lock.
+  def threadlock(resource, type = Sync::EX)
+    Puppet::Util.synchronize_on(resource,type) { yield }
+  end
+
+  module_function :benchmark
+
   def memory
     unless defined?(@pmap)
       @pmap = which('pmap')
@@ -373,15 +395,9 @@ module Util
   #
   # The default_mode is the mode to use when the target file doesn't already
   # exist; if the file is present we copy the existing mode/owner/group values
-  # across. The default_mode can be expressed as an octal integer, a numeric string (ie '0664')
-  # or a symbolic file mode.
+  # across.
   def replace_file(file, default_mode, &block)
     raise Puppet::DevError, "replace_file requires a block" unless block_given?
-
-    unless valid_symbolic_mode?(default_mode)
-      raise Puppet::DevError, "replace_file default_mode: #{default_mode} is invalid"
-    end
-    mode = symbolic_mode_to_int(normalize_symbolic_mode(default_mode))
 
     file     = Pathname(file)
     tempfile = Tempfile.new(file.basename.to_s, file.dirname.to_s)
@@ -396,7 +412,7 @@ module Util
     # secure" tempfile permissions instead.  Magic happens later.
     unless Puppet.features.microsoft_windows?
       # Grab the current file mode, and fall back to the defaults.
-      stat = file.lstat rescue OpenStruct.new(:mode => mode,
+      stat = file.lstat rescue OpenStruct.new(:mode => default_mode,
                                               :uid  => Process.euid,
                                               :gid  => Process.egid)
 
@@ -456,7 +472,7 @@ module Util
         end
 
         # Set the permissions to what we want.
-        Puppet::Util::Windows::Security.set_mode(mode, file.to_s)
+        Puppet::Util::Windows::Security.set_mode(default_mode, file.to_s)
 
         # ...and finally retry the operation.
         retry

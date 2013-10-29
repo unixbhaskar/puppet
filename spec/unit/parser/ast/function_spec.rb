@@ -10,7 +10,7 @@ describe Puppet::Parser::AST::Function do
     it "should not fail if the function doesn't exist" do
       Puppet::Parser::Functions.stubs(:function).returns(false)
 
-      expect{ Puppet::Parser::AST::Function.new :name => "dontexist" }.to_not raise_error
+      lambda{ Puppet::Parser::AST::Function.new :name => "dontexist" }.should_not raise_error(Puppet::ParseError)
 
     end
   end
@@ -27,7 +27,7 @@ describe Puppet::Parser::AST::Function do
       Puppet::Parser::Functions.stubs(:function).returns(false)
       func = Puppet::Parser::AST::Function.new :name => "dontexist"
 
-      expect{ func.evaluate(@scope) }.to raise_error(Puppet::ParseError)
+      lambda{ func.evaluate(@scope) }.should raise_error(Puppet::ParseError)
     end
 
     it "should fail if the function is a statement used as rvalue" do
@@ -36,7 +36,7 @@ describe Puppet::Parser::AST::Function do
 
       func = Puppet::Parser::AST::Function.new :name => "exist", :ftype => :rvalue
 
-      expect{ func.evaluate(@scope) }.to raise_error(Puppet::ParseError, "Function 'exist' does not return a value")
+      lambda{ func.evaluate(@scope) }.should raise_error(Puppet::ParseError, "Function 'exist' does not return a value")
     end
 
     it "should fail if the function is an rvalue used as statement" do
@@ -45,7 +45,7 @@ describe Puppet::Parser::AST::Function do
 
       func = Puppet::Parser::AST::Function.new :name => "exist", :ftype => :statement
 
-      expect{ func.evaluate(@scope) }.to raise_error(Puppet::ParseError,"Function 'exist' must be the value of a statement")
+      lambda{ func.evaluate(@scope) }.should raise_error(Puppet::ParseError,"Function 'exist' must be the value of a statement")
     end
 
     it "should evaluate its arguments" do

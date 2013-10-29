@@ -13,7 +13,7 @@ this difference while working on the static compiler and types and providers.
 
 The two different types of catalog becomes relevant when writing spec tests
 because we frequently need to wire up a fake catalog so that we can exercise
-types, providers, or termini that filter the catalog.
+types, providers, or terminii that filter the catalog.
 
 The two different types of catalogs are so-called "resource" catalogs and "RAL"
 (resource abstraction layer) catalogs.  At a high level, the resource catalog
@@ -130,35 +130,67 @@ method.
 
 # Ruby Dependencies #
 
-To install the dependencies run:
+Puppet is considered an Application as it relates to the recommendation of
+adding a Gemfile.lock file to the repository and the information published at
+[Clarifying the Roles of the .gemspec and
+Gemfile](http://yehudakatz.com/2010/12/16/clarifying-the-roles-of-the-gemspec-and-gemfile/)
 
-    $ bundle install --path .bundle/gems/
+To install the dependencies run: `bundle install` to install the dependencies.
 
-Once this is done, you can interact with puppet through bundler using `bundle
-exec <command>` which will ensure that `<command>` is executed in the context
-of puppet's dependencies.
+A checkout of the source repository should be used in a way that provides
+puppet as a gem rather than a simple Ruby library.  The parent directory should
+be set along the `GEM_PATH`, preferably before other tools such as RVM that
+manage gemsets using `GEM_PATH`.
 
-For example to run the specs:
+For example, Puppet checked out into `/workspace/src/puppet` using `git
+checkout https://github.com/puppetlabs/puppet` in `/workspace/src` can be used
+with the following actions.  The trick is to symlink `gems` to `src`.
 
-    $ bundle exec rake spec
+    $ cd /workspace
+    $ ln -s src gems
+    $ mkdir specifications
+    $ pushd specifications; ln -s ../gems/puppet/puppet.gemspec; ln -s ../gems/puppet/lib; popd
+    $ export GEM_PATH="/workspace:${GEM_PATH}"
+    $ gem list puppet
 
-To run puppet itself (for a resource lookup say):
+This should list out
 
-    $ bundle exec puppet resource host localhost
+    puppet (2.7.19)
 
-which should return something like:
+The final directory structure should look like this:
 
-    host { 'localhost':
-      ensure => 'present',
-      ip     => '127.0.0.1',
-      target => '/etc/hosts',
-    }
+    /workspace/src --- git working directory
+              /gems -> src
+              /specifications/puppet.gemspec -> ../gems/puppet/puppet.gemspec
+                             /lib -> ../gems/puppet/lib
+
+## Bundler ##
+
+With a source checkout of Puppet properly setup as a gem, dependencies can be
+installed using [Bundler](http://gembundler.com/)
+
+    $ bundle install
+    Fetching gem metadata from http://rubygems.org/........
+    Using diff-lcs (1.1.3)
+    Installing facter (1.6.11)
+    Using metaclass (0.0.1)
+    Using mocha (0.10.5)
+    Using puppet (2.7.19) from source at /workspace/puppet-2.7.x/src/puppet
+    Using rack (1.4.1)
+    Using rspec-core (2.10.1)
+    Using rspec-expectations (2.10.0)
+    Using rspec-mocks (2.10.1)
+    Using rspec (2.10.0)
+    Using bundler (1.1.5)
+    Your bundle is complete! Use `bundle show [gemname]` to see where a bundled gem is installed.
 
 # Running Tests #
 
 Puppet Labs projects use a common convention of using Rake to run unit tests.
 The tests can be run with the following rake task:
 
+    rake spec
+    # Or if using Bundler
     bundle exec rake spec
 
 This allows the Rakefile to set up the environment beforehand if needed. This
@@ -167,20 +199,14 @@ method is how the unit tests are run in [Jenkins](https://jenkins.puppetlabs.com
 Under the hood Puppet's tests use `rspec`.  To run all of them, you can directly
 use 'rspec':
 
+    rspec
+    # Or if using Bundler
     bundle exec rspec
 
 To run a single file's worth of tests (much faster!), give the filename, and use
 the nested format to see the descriptions:
 
-    bundle exec rspec spec/unit/ssl/host_spec.rb --format nested
-
-## Testing dependency version requirements
-
-Puppet is only compatible with certain versions of RSpec and Mocha. If you are
-not using Bundler to install the required test libraries you must ensure that
-you are using the right library versions. Using unsupported versions of Mocha
-and RSpec will probably display many spurious failures. The supported versions
-of RSpec and Mocha can be found in the project Gemfile.
+    rspec spec/unit/ssl/host_spec.rb --format nested
 
 # A brief introduction to testing in Puppet
 
@@ -766,11 +792,11 @@ default clientbucket.
 Create a module that recursively downloads something.  The jeffmccune-filetest
 module will recursively copy the rubygems source tree.
 
-    $ bundle exec puppet module install jeffmccune-filetest
+    $ puppet module install jeffmccune-filetest
 
 Start the master with the StaticCompiler turned on:
 
-    $ bundle exec puppet master \
+    $ puppet master \
         --catalog_terminus=static_compiler \
         --verbose \
         --no-daemonize
@@ -785,7 +811,7 @@ Add the special Filebucket[puppet] resource:
 
 Get the static catalog:
 
-    $ bundle exec puppet agent --test
+    $ puppet agent --test
 
 You should expect all file metadata to be contained in the catalog, including a
 checksum representing the content.  When managing an out of sync file resource,

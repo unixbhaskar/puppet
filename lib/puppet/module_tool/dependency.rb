@@ -2,8 +2,6 @@ module Puppet::ModuleTool
 
   class Dependency
 
-    attr_reader :full_module_name, :username, :name, :version_requirement, :repository
-
     # Instantiates a new module dependency with a +full_module_name+ (e.g.
     # "myuser-mymodule"), and optional +version_requirement+ (e.g. "0.0.1") and
     # optional repository (a URL string).

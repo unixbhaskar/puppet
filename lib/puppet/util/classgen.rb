@@ -36,7 +36,7 @@ module Puppet::Util::ClassGen
 
   # Creates a new module.
   # @param name [String] the name of the generated module
-  # @param options [Hash] hash with options
+  # @param optinos [Hash] hash with options
   # @option options [Array<Class>] :array if specified, the generated class is appended to this array
   # @option options [Hash<{String => Object}>] :attributes a hash that is applied to the generated class
   #   by calling setter methods corresponding to this hash's keys/value pairs. This is done before the given
@@ -67,7 +67,7 @@ module Puppet::Util::ClassGen
     options = symbolize_options(options)
     const = genconst_string(name, options)
     retval = false
-    if is_constant_defined?(const)
+    if const_defined?(const)
       remove_const(const)
       retval = true
     end

@@ -10,7 +10,6 @@ describe Puppet::Application::Apply do
   before :each do
     @apply = Puppet::Application[:apply]
     Puppet::Util::Log.stubs(:newdestination)
-    Puppet[:reports] = "none"
   end
 
   after :each do
@@ -148,7 +147,7 @@ describe Puppet::Application::Apply do
 
         STDIN.stubs(:read)
 
-        @transaction = stub('transaction')
+        @transaction = Puppet::Transaction.new(@catalog)
         @catalog.stubs(:apply).returns(@transaction)
 
         Puppet::Util::Storage.stubs(:load)

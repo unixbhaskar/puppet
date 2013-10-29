@@ -10,7 +10,7 @@ module Puppet::Indirector
   require 'puppet/indirector/indirection'
   require 'puppet/indirector/terminus'
   require 'puppet/indirector/envelope'
-  require 'puppet/network/format_support'
+  require 'puppet/network/format_handler'
 
   def self.configure_routes(application_routes)
     application_routes.each do |indirection_name, termini|
@@ -38,7 +38,7 @@ module Puppet::Indirector
     # populate this class with the various new methods
     extend ClassMethods
     include Puppet::Indirector::Envelope
-    include Puppet::Network::FormatSupport
+    extend Puppet::Network::FormatHandler
 
     # record the indirected class name for documentation purposes
     options[:indirected_class] = name

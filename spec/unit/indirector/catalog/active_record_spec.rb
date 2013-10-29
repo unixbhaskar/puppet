@@ -89,11 +89,9 @@ describe "Puppet::Resource::Catalog::ActiveRecord", :if => can_use_scratch_datab
     end
 
     it "should set the last compile time on the host" do
-      before = Time.now
+      now = Time.now
       terminus.save(request)
-      after = Time.now
-
-      Puppet::Rails::Host.find_by_name("foo").last_compile.should be_between(before, after)
+      Puppet::Rails::Host.find_by_name("foo").last_compile.should be_within(1).of(now)
     end
 
     it "should save the Rails host instance" do

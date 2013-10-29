@@ -7,6 +7,7 @@ require 'puppet/util'
 require 'puppet/util/autoload'
 require 'puppet/metatype/manager'
 require 'puppet/util/errors'
+require 'puppet/util/log_paths'
 require 'puppet/util/logging'
 require 'puppet/util/tagging'
 
@@ -76,6 +77,7 @@ module Puppet
 class Type
   include Puppet::Util
   include Puppet::Util::Errors
+  include Puppet::Util::LogPaths
   include Puppet::Util::Logging
   include Puppet::Util::Tagging
 
@@ -301,7 +303,7 @@ class Type
   # @param metaparam [??? Puppet::Parameter] the meta-parameter to get documentation for.
   # @return [String] the documentation associated with the given meta-parameter, or nil of not such documentation
   #   exists.
-  # @raise if the given metaparam is not a meta-parameter in this type
+  # @raises [?] if the given metaparam is not a meta-parameter in this type
   #
   def self.metaparamdoc(metaparam)
     @@metaparamhash[metaparam].doc
@@ -352,7 +354,8 @@ class Type
   # Returns parameters that act as a key.
   # All parameters that return true from #isnamevar? or is named `:name` are included in the returned result.
   # @todo would like a better explanation
-  # @return [Array<Puppet::Parameter>] WARNING: this return type is uncertain
+  # @return Array<??? Puppet::Parameter>
+  #
   def self.key_attribute_parameters
     @key_attribute_parameters ||= (
       @parameters.find_all { |param|
@@ -692,20 +695,6 @@ class Type
     }
   end
 
-  # Return the parameters, metaparams, and properties that have a value or were set by a default. Properties are
-  # included since they are a subclass of parameter.
-  # @return [Array<Puppet::Parameter>] Array of parameter objects ( or subclass thereof )
-  def parameters_with_value
-    self.class.allattrs.collect { |attr| parameter(attr) }.compact
-  end
-
-  # Iterates over all parameters with value currently set.
-  # @yieldparam parameter [Puppet::Parameter] or a subclass thereof
-  # @return [void]
-  def eachparameter
-    parameters_with_value.each { |parameter| yield parameter }
-  end
-
   # Creates a transaction event.
   # Called by Transaction or by a property.
   # Merges the given options with the options `:resource`, `:file`, `:line`, and `:tags`, initialized from
@@ -757,13 +746,6 @@ class Type
     return @parameters[name] if @parameters.include?(name)
 
     @parameters[name] = klass.new(:resource => self)
-  end
-
-  # Returns a string representation of the resource's containment path in
-  # the catalog.
-  # @return [String]
-  def path
-    @path ||= '/' + pathbuilder.join('/')
   end
 
   # Returns the value of this object's parameter given by name
@@ -1021,7 +1003,7 @@ class Type
   # Parameters and meta-parameters are not included in the result.
   # @todo As oposed to all non contained properties? How is this different than any of the other
   #   methods that also "gets" properties/parameters/etc. ?
-  # @return [Puppet::Resource] array of all property values (mix of types)
+  # @return [Array<Object>] array of all property values (mix of types)
   # @raise [fail???] if there is a provider and it is not suitable for the host this is evaluated for.
   def retrieve
     fail "Provider #{provider.class.name} is not functional on this host" if self.provider.is_a?(Puppet::Provider) and ! provider.class.suitable?
@@ -1049,16 +1031,12 @@ class Type
     result
   end
 
-  # Retrieve the current state of the system as a Puppet::Resource. For
-  # the base Puppet::Type this does the same thing as #retrieve, but
-  # specific types are free to implement #retrieve as returning a hash,
-  # and this will call #retrieve and convert the hash to a resource.
-  # This is used when determining when syncing a resource.
+  # ???
+  # @todo what does this do? It seems to create a new Resource based on the result of calling #retrieve
+  #  and if that is a Hash, else this method produces nil.
+  # @return [Puppet::Resource, nil] a new Resource, or nil, if this object did not produce a Hash as the
+  #   result from #retrieve
   #
-  # @return [Puppet::Resource] A resource representing the current state
-  #   of the system.
-  #
-  # @api private
   def retrieve_resource
     resource = retrieve
     resource = Resource.new(type, title, :parameters => resource) if resource.is_a? Hash
@@ -1160,7 +1138,7 @@ class Type
 
   # Converts a simple hash into a Resource instance.
   # @todo as opposed to a complex hash? Other raised exceptions?
-  # @param [Hash{Symbol, String => Object}] hash resource attribute to value map to initialize the created resource from
+  # @param [Hash{Symbol, String => Object}] resource attribute to value map to initialize the created resource from
   # @return [Puppet::Resource] the resource created from the hash
   # @raise [Puppet::Error] if a title is missing in the given hash
   def self.hash2resource(hash)
@@ -1174,7 +1152,12 @@ class Type
 
     # Now create our resource.
     resource = Puppet::Resource.new(self.name, title)
-    resource.catalog = hash.delete(:catalog)
+    [:catalog].each do |attribute|
+      if value = hash[attribute]
+        hash.delete(attribute)
+        resource.send(attribute.to_s + "=", value)
+      end
+    end
 
     hash.each do |param, value|
       resource[param] = value
@@ -1182,12 +1165,10 @@ class Type
     resource
   end
 
-
-  # Returns an array of strings representing the containment heirarchy
-  # (types/classes) that make up the path to the resource from the root
-  # of the catalog.  This is mostly used for logging purposes.
-  #
+  # Creates the path for logging and such.
+  # @todo "and such?", what?
   # @api private
+  #
   def pathbuilder
     if p = parent
       [p.pathbuilder, self.ref].flatten
@@ -1303,43 +1284,43 @@ class Type
   end
 
   newmetaparam(:alias) do
-    desc %q{Creates an alias for the resource.  Puppet uses this internally when you
-      provide a symbolic title and an explicit namevar value:
+    desc "Creates an alias for the object.  Puppet uses this internally when you
+      provide a symbolic title:
 
           file { 'sshdconfig':
             path => $operatingsystem ? {
-              solaris => '/usr/local/etc/ssh/sshd_config',
-              default => '/etc/ssh/sshd_config',
+              solaris => \"/usr/local/etc/ssh/sshd_config\",
+              default => \"/etc/ssh/sshd_config\"
             },
-            source => '...'
+            source => \"...\"
           }
 
           service { 'sshd':
-            subscribe => File['sshdconfig'],
+            subscribe => File['sshdconfig']
           }
 
       When you use this feature, the parser sets `sshdconfig` as the title,
       and the library sets that as an alias for the file so the dependency
       lookup in `Service['sshd']` works.  You can use this metaparameter yourself,
-      but note that aliases generally only work for creating relationships; anything
-      else that refers to an existing resource (such as amending or overriding
-      resource attributes in an inherited class) must use the resource's exact
-      title. For example, the following code will not work:
+      but note that only the library can use these aliases; for instance,
+      the following code will not work:
 
-          file { '/etc/ssh/sshd_config':
+          file { \"/etc/ssh/sshd_config\":
             owner => root,
             group => root,
-            alias => 'sshdconfig',
+            alias => 'sshdconfig'
           }
 
-          File['sshdconfig'] {
-            mode => 644,
+          file { 'sshdconfig':
+            mode => 644
           }
 
       There's no way here for the Puppet parser to know that these two stanzas
       should be affecting the same file.
 
-      }
+      See the [Language Guide](http://docs.puppetlabs.com/guides/language_guide.html) for more information.
+
+      "
 
     munge do |aliases|
       aliases = [aliases] unless aliases.is_a?(Array)
@@ -1828,7 +1809,7 @@ class Type
       end
 
       # @todo this does what? where and how?
-      # @return [String] the name of the provider
+      # @returns [String] the name of the provider
       defaultto {
         prov = @resource.class.defaultprovider
         prov.name if prov
@@ -1961,9 +1942,8 @@ class Type
   # Adds dependencies to the catalog from added autorequirements.
   # See {autorequire} for how to add an auto-requirement.
   # @todo needs details - see the param rel_catalog, and type of this param
-  # @param rel_catalog [Puppet::Resource::Catalog, nil] the catalog to
-  #   add dependencies to. Defaults to the current catalog (set when the
-  #   type instance was added to a catalog)
+  # @param rel_catalog [Puppet::Catalog, nil] the catalog to add dependencies to. Defaults to the
+  #   catalog (TODO: what is the type of the catalog).
   # @raise [Puppet::DevError] if there is no catalog
   #
   def autorequire(rel_catalog = nil)
@@ -2124,6 +2104,7 @@ class Type
   #
   def self.validate(&block)
     define_method(:validate, &block)
+    #@validate = block
   end
 
   # @return [String] The file from which this type originates from
@@ -2176,8 +2157,8 @@ class Type
   #   resources; one that causes the title to be set to resource.title, and one that
   #   causes the title to be resource.ref ("for components") - what is a component?
   #
-  # @overload initialize(hash)
-  #   @param [Hash] hash
+  # @overaload initialize(hsh)
+  #   @param hsh [Hash]
   #   @raise [Puppet::ResourceError] when the type validation raises
   #     Puppet::Error or ArgumentError
   # @overload initialize(resource)
@@ -2292,13 +2273,6 @@ class Type
   # @return [Array<Puppet::Parameter>] the validated list/set of attributes
   #
   def finish
-    # Call post_compile_hook hook on every parameter that implements it. This includes all subclasses
-    # of parameter including, but not limited to, regular parameters, metaparameters, relationship
-    # parameters, and properties.
-    eachparameter do |parameter|
-      parameter.post_compile_hook if parameter.respond_to? :post_compile_hook
-    end
-
     # Make sure all of our relationships are valid.  Again, must be done
     # when the entire catalog is instantiated.
     self.class.relationship_params.collect do |klass|
@@ -2432,15 +2406,14 @@ class Type
   def exported?; !!@exported; end
 
   # @return [Boolean] Returns whether the resource is applicable to `:device`
-  # Returns true if a resource of this type can be evaluated on a 'network device' kind
-  # of hosts.
+  # @todo Explain what this means
   # @api private
   def appliable_to_device?
     self.class.can_apply_to(:device)
   end
 
   # @return [Boolean] Returns whether the resource is applicable to `:host`
-  # Returns true if a resource of this type can be evaluated on a regular generalized computer (ie not an appliance like a network device)
+  # @todo Explain what this means
   # @api private
   def appliable_to_host?
     self.class.can_apply_to(:host)

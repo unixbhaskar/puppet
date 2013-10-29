@@ -1,20 +1,14 @@
 require 'puppet/network/format_handler'
 
 Puppet::Network::FormatHandler.create_serialized_formats(:yaml) do
+  # Yaml doesn't need the class name; it's serialized.
   def intern(klass, text)
-    data = YAML.load(text, :safe => true, :deserialize_symbols => true)
-    return data if data.is_a?(klass)
-    klass.from_pson(data)
+    YAML.safely_load(text)
   end
 
+  # Yaml doesn't need the class name; it's serialized.
   def intern_multiple(klass, text)
-    YAML.load(text, :safe => true, :deserialize_symbols => true).collect do |data|
-      if data.is_a?(klass)
-        data
-      else
-        klass.from_pson(data)
-      end
-    end
+    YAML.safely_load(text)
   end
 
   def render(instance)
@@ -26,6 +20,7 @@ Puppet::Network::FormatHandler.create_serialized_formats(:yaml) do
     instances.to_yaml
   end
 
+  # Unlike core's yaml, ZAML should support 1.8.1 just fine
   def supported?(klass)
     true
   end
@@ -50,15 +45,11 @@ Puppet::Network::FormatHandler.create_serialized_formats(:b64_zlib_yaml) do
   end
 
   def intern(klass, text)
-    requiring_zlib do
-      Puppet::Network::FormatHandler.format(:yaml).intern(klass, decode(text))
-    end
+    decode(text)
   end
 
   def intern_multiple(klass, text)
-    requiring_zlib do
-      Puppet::Network::FormatHandler.format(:yaml).intern_multiple(klass, decode(text))
-    end
+    decode(text)
   end
 
   def render(instance)
@@ -73,13 +64,15 @@ Puppet::Network::FormatHandler.create_serialized_formats(:b64_zlib_yaml) do
     true
   end
 
-  def decode(data)
-    Zlib::Inflate.inflate(Base64.decode64(data))
-  end
-
   def encode(text)
     requiring_zlib do
       Base64.encode64(Zlib::Deflate.deflate(text, Zlib::BEST_COMPRESSION))
+    end
+  end
+
+  def decode(yaml)
+    requiring_zlib do
+      YAML.safely_load(Zlib::Inflate.inflate(Base64.decode64(yaml)))
     end
   end
 end

@@ -1,4 +1,5 @@
 require 'puppet/util/methodhelper'
+require 'puppet/util/log_paths'
 require 'puppet/util/logging'
 require 'puppet/util/docs'
 
@@ -21,6 +22,7 @@ require 'puppet/util/docs'
 class Puppet::Parameter
   include Puppet::Util
   include Puppet::Util::Errors
+  include Puppet::Util::LogPaths
   include Puppet::Util::Logging
   include Puppet::Util::MethodHelper
 
@@ -305,28 +307,18 @@ class Puppet::Parameter
   #
   attr_accessor :parent
 
-  # Returns a string representation of the resource's containment path in
-  # the catalog.
-  # @return [String]
-  def path
-    @path ||= '/' + pathbuilder.join('/')
+  # @!method line()
+  #   @return [Integer] Returns the result of calling the same method on the associated resource.
+  # @!method file
+  #   @return [Integer] Returns the result of calling the same method on the associated resource.
+  # @!method version
+  #   @return [Integer] Returns the result of calling the same method on the associated resource.
+  #
+  [:line, :file, :version].each do |param|
+    define_method(param) do
+      resource.send(param)
+    end
   end
-
-  # @return [Integer] Returns the result of calling the same method on the associated resource.
-  def line
-    resource.line
-  end
-
-  # @return [Integer] Returns the result of calling the same method on the associated resource.
-  def file
-    resource.file
-  end
-
-  # @return [Integer] Returns the result of calling the same method on the associated resource.
-  def version
-    resource.version
-  end
-
 
   # Initializes the parameter with a required resource reference and optional attribute settings.
   # The option `:resource` must be specified or an exception is raised. Any additional options passed
@@ -386,9 +378,9 @@ class Puppet::Parameter
     tmp
   end
 
-  # Returns an array of strings representing the containment heirarchy
-  # (types/classes) that make up the path to the resource from the root
-  # of the catalog.  This is mostly used for logging purposes.
+  # @todo Original comment = _return the full path to us, for logging and rollback; not currently
+  #   used_ This is difficult to figure out (if it is used or not as calls are certainly made to "pathbuilder"
+  #   method is several places, not just sure if it is this implementation or not.
   #
   # @api private
   def pathbuilder
@@ -567,14 +559,6 @@ class Puppet::Parameter
       "'#{value}'"
     end
   end
-
-  # @comment Document post_compile_hook here as it does not exist anywhere (called from type if implemented)
-  # @!method post_compile_hook()
-  #   @abstract A subclass may implement this - it is not implemented in the Parameter class
-  #   This method may be implemented by a parameter in order to perform actions during compilation
-  #   after all resources have been added to the catalog.
-  #   @see Puppet::Type#finish
-  #   @see Puppet::Parser::Compiler#finish
 end
 
 require 'puppet/parameter/path'

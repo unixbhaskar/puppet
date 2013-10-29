@@ -106,20 +106,22 @@ describe Puppet::Parser::Compiler do
     @compiler.classlist.sort.should == %w{one two}.sort
   end
 
-  it "should clear the global caches before compile" do
+  it "should clear the thread local caches before compile" do
     compiler = stub 'compiler'
     Puppet::Parser::Compiler.expects(:new).with(@node).returns compiler
     catalog = stub 'catalog'
     compiler.expects(:compile).returns catalog
     catalog.expects(:to_resource)
 
-    $known_resource_types = "rspec"
-    $env_module_directories = "rspec"
+    [:known_resource_types, :env_module_directories].each do |var|
+      Thread.current[var] = "rspec"
+    end
 
     Puppet::Parser::Compiler.compile(@node)
 
-    $known_resource_types = nil
-    $env_module_directories = nil
+    [:known_resource_types, :env_module_directories].each do |var|
+      Thread.current[var].should == nil
+    end
   end
 
   describe "when initializing" do
@@ -223,10 +225,9 @@ describe Puppet::Parser::Compiler do
       three = stub 'three', :name => "three"
       @node.stubs(:name).returns("whatever")
       @node.stubs(:classes).returns(classes)
-      compile_stub(:evaluate_node_classes)
 
       @compiler.expects(:evaluate_classes).with(classes, @compiler.topscope)
-      @compiler.compile
+      @compiler.class.publicize_methods(:evaluate_node_classes) { @compiler.evaluate_node_classes }
     end
 
     it "should evaluate any parameterized classes named in the node" do
@@ -520,7 +521,7 @@ describe Puppet::Parser::Compiler do
         end
       }
 
-      @compiler.compile
+      @compiler.class.publicize_methods(:evaluate_collections) { @compiler.evaluate_collections }
     end
 
     it "should not fail when there are unevaluated resource collections that do not refer to specific resources" do
@@ -575,7 +576,7 @@ describe Puppet::Parser::Compiler do
     it "should raise an error when it can't find class" do
       klasses = {'foo'=>nil}
       @node.classes = klasses
-      @compiler.topscope.expects(:find_hostclass).with('foo', {:assume_fqname => false}).returns(nil)
+      @compiler.topscope.stubs(:find_hostclass).with('foo', {:assume_fqname => false}).returns(nil)
       lambda{ @compiler.compile }.should raise_error(Puppet::Error, /Could not find class foo for testnode/)
     end
   end

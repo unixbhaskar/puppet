@@ -3,12 +3,8 @@ require 'puppet/ssl/host'
 require 'puppet/ssl/configuration'
 require 'puppet/ssl/validator'
 require 'puppet/network/authentication'
-require 'uri'
 
 module Puppet::Network::HTTP
-
-  # This will be raised if too many redirects happen for a given HTTP request
-  class RedirectionLimitExceededException < Puppet::Error ; end
 
   # This class provides simple methods for issuing various types of HTTP
   # requests.  It's interface is intended to mirror Ruby's Net::HTTP
@@ -22,34 +18,10 @@ module Puppet::Network::HTTP
   class Connection
     include Puppet::Network::Authentication
 
-    OPTION_DEFAULTS = {
-      :use_ssl => true,
-      :verify_peer => true,
-      :redirect_limit => 10
-    }
-
-    # Creates a new HTTP client connection to `host`:`port`. 
-    # @param host [String] the host to which this client will connect to
-    # @param port [Fixnum] the port to which this client will connect to
-    # @param options [Hash] options influencing the properties of the created connection,
-    #   the following options are recognized:
-    #     :use_ssl [Boolean] true to connect with SSL, false otherwise, defaults to true
-    #     :verify_peer [Boolean] true to verify the peer's certificate, false otherwise, defaults to true
-    #     :redirect_limit [Fixnum] the number of allowed redirections, defaults to 10
-    #   passing any other option in the options hash results in a Puppet::Error exception
-    # @note the HTTP connection itself happens lazily only when {#request}, or one of the {#get}, {#post}, {#delete}, {#head} or {#put} is called
-    # @api private
-    def initialize(host, port, options = {})
+    def initialize(host, port, use_ssl = true)
       @host = host
       @port = port
-
-      unknown_options = options.keys - OPTION_DEFAULTS.keys
-      raise Puppet::Error, "Unrecognized option(s): #{unknown_options.map(&:inspect).sort.join(', ')}" unless unknown_options.empty?
-
-      options = OPTION_DEFAULTS.merge(options)
-      @use_ssl = options[:use_ssl]
-      @verify_peer = options[:verify_peer]
-      @redirect_limit = options[:redirect_limit]
+      @use_ssl = use_ssl
     end
 
     def get(*args)
@@ -73,67 +45,10 @@ module Puppet::Network::HTTP
     end
 
     def request(method, *args)
-      current_args = args.dup
-      @redirect_limit.times do |redirection|
-        response = execute_request(method, *args)
-        return response unless [301, 302, 307].include?(response.code.to_i)
-
-        # handle the redirection
-        location = URI.parse(response['location'])
-        @connection = initialize_connection(location.host, location.port, location.scheme == 'https')
-
-        # update to the current request path
-        current_args = [location.path] + current_args.drop(1)
-        # and try again...
-      end
-      raise RedirectionLimitExceededException, "Too many HTTP redirections for #{@host}:#{@port}"
-    end
-
-    # TODO: These are proxies for the Net::HTTP#request_* methods, which are
-    # almost the same as the "get", "post", etc. methods that we've ported above,
-    # but they are able to accept a code block and will yield to it.  For now
-    # we're not funneling these proxy implementations through our #request
-    # method above, so they will not inherit the same error handling.  In the
-    # future we may want to refactor these so that they are funneled through
-    # that method and do inherit the error handling.
-    def request_get(*args, &block)
-      connection.request_get(*args, &block)
-    end
-
-    def request_head(*args, &block)
-      connection.request_head(*args, &block)
-    end
-
-    def request_post(*args, &block)
-      connection.request_post(*args, &block)
-    end
-    # end of Net::HTTP#request_* proxies
-
-    def address
-      connection.address
-    end
-
-    def port
-      connection.port
-    end
-
-    def use_ssl?
-      connection.use_ssl?
-    end
-
-    private
-
-    def connection
-      @connection || initialize_connection(@host, @port, @use_ssl)
-    end
-
-    def execute_request(method, *args)
       ssl_validator = Puppet::SSL::Validator.new(:ssl_configuration => ssl_configuration)
       # Perform our own validation of the SSL connection in addition to OpenSSL
       ssl_validator.register_verify_callback(connection)
-
       response = connection.send(method, *args)
-
       # Check the peer certs and warn if they're nearing expiration.
       warn_if_near_expiration(*ssl_validator.peer_certs)
 
@@ -155,8 +70,49 @@ module Puppet::Network::HTTP
       end
     end
 
-    def initialize_connection(host, port, use_ssl)
-      args = [host, port]
+
+    # TODO: These are proxies for the Net::HTTP#request_* methods, which are
+    # almost the same as the "get", "post", etc. methods that we've ported above,
+    # but they are able to accept a code block and will yield to it.  For now
+    # we're not funneling these proxy implementations through our #request
+    # method above, so they will not inherit the same error handling.  In the
+    # future we may want to refactor these so that they are funneled through
+    # that method and do inherit the error handling.
+    def request_get(*args, &block)
+      connection.request_get(*args, &block)
+    end
+
+    def request_head(*args, &block)
+      connection.request_head(*args, &block)
+    end
+
+    def request_post(*args, &block)
+      connection.request_post(*args, &block)
+    end
+    # end of Net::HTTP#request_* proxies
+
+
+    def address
+      connection.address
+    end
+
+    def port
+      connection.port
+    end
+
+    def use_ssl?
+      connection.use_ssl?
+    end
+
+
+    private
+
+    def connection
+      @connection || initialize_connection
+    end
+
+    def initialize_connection
+      args = [@host, @port]
       if Puppet[:http_proxy_host] == "none"
         args << nil << nil
       else
@@ -169,7 +125,7 @@ module Puppet::Network::HTTP
       # give us a reader for ca_file... Grr...
       class << @connection; attr_accessor :ca_file; end
 
-      @connection.use_ssl = use_ssl
+      @connection.use_ssl = @use_ssl
       # Use configured timeout (#1176)
       @connection.read_timeout = Puppet[:configtimeout]
       @connection.open_timeout = Puppet[:configtimeout]
@@ -181,7 +137,7 @@ module Puppet::Network::HTTP
 
     # Use cert information from a Puppet client to set up the http object.
     def cert_setup
-      if @verify_peer and FileTest.exist?(Puppet[:hostcert]) and FileTest.exist?(ssl_configuration.ca_auth_file)
+      if FileTest.exist?(Puppet[:hostcert]) and FileTest.exist?(ssl_configuration.ca_auth_file)
         @connection.cert_store  = ssl_host.ssl_store
         @connection.ca_file     = ssl_configuration.ca_auth_file
         @connection.cert        = ssl_host.certificate.content

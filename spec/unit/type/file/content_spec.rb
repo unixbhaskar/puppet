@@ -84,13 +84,6 @@ describe content do
 
       @content.should.must == string
     end
-
-    it "should convert the value to ASCII-8BIT", :if => "".respond_to?(:encode) do
-      @content = content.new(:resource => @resource)
-      @content.should= "Let's make a \u{2603}"
-
-      @content.actual_content.should == "Let's make a \xE2\x98\x83".force_encoding(Encoding::ASCII_8BIT)
-    end
   end
 
   describe "when retrieving the current content" do
@@ -152,17 +145,6 @@ describe content do
       @resource.expects(:should_be_file?).returns false
       @content.should = "foo"
       @content.must be_safe_insync("whatever")
-    end
-
-    it "should warn that no content will be synced to links when ensure is :present" do
-      @resource[:ensure] = :present
-      @resource[:content] = 'foo'
-      @resource.stubs(:should_be_file?).returns false
-      @resource.stubs(:stat).returns mock("stat", :ftype => "link")
-
-      @resource.expects(:warning).with {|msg| msg =~ /Ensure set to :present but file type is/}
-
-      @content.insync? :present
     end
 
     it "should return false if the current content is :absent" do

@@ -26,11 +26,6 @@ describe Puppet::Type.type(:file) do
         file[:path].should == "/foo/bar/baz"
       end
 
-      it "should remove triple slashes" do
-        file[:path] = "/foo/bar///baz"
-        file[:path].should == "/foo/bar/baz"
-      end
-
       it "should remove trailing double slashes" do
         file[:path] = "/foo/bar/baz//"
         file[:path].should == "/foo/bar/baz"
@@ -41,14 +36,11 @@ describe Puppet::Type.type(:file) do
         file[:path].should == "/"
       end
 
-      it "should accept and collapse a double-slash at the start of the path" do
-        file[:path] = "//tmp/xxx"
-        file[:path].should == '/tmp/xxx'
-      end
-
-      it "should accept and collapse a triple-slash at the start of the path" do
-        file[:path] = "///tmp/xxx"
-        file[:path].should == '/tmp/xxx'
+      it "should accept and preserve a double-slash at the start of the path" do
+        expect {
+          file[:path] = "//tmp/xxx"
+          file[:path].should == '//tmp/xxx'
+        }.to_not raise_error
       end
     end
 
@@ -1124,7 +1116,7 @@ describe Puppet::Type.type(:file) do
         property = stub('content_property', :actual_content => "something", :length => "something".length, :write => 'checksum_a')
         file.stubs(:property).with(:content).returns(property)
 
-        expect { file.write :NOTUSED }.to_not raise_error
+        expect { file.write :NOTUSED }.to_not raise_error(Puppet::Error)
       end
     end
   end

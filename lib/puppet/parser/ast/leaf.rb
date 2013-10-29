@@ -131,13 +131,7 @@ class Puppet::Parser::AST
 
     def evaluate_container(scope)
       container = variable.respond_to?(:evaluate) ? variable.safeevaluate(scope) : variable
-      if container.is_a?(Hash) || container.is_a?(Array)
-        container
-      elsif container.is_a?(::String)
-        scope[container, {:file => file, :line => line}]
-      else
-        raise Puppet::ParseError, "#{variable} is #{container.inspect}, not a hash or array"
-      end
+      (container.is_a?(Hash) or container.is_a?(Array)) ? container : scope[container, {:file => file, :line => line}]
     end
 
     def evaluate_key(scope)
@@ -156,8 +150,7 @@ class Puppet::Parser::AST
       accesskey = evaluate_key(scope)
       raise Puppet::ParseError, "#{variable} is not a hash or array when accessing it with #{accesskey}" unless object.is_a?(Hash) or object.is_a?(Array)
 
-      result = object[array_index_or_key(object, accesskey)]
-      result.nil? ? :undef : result
+      object[array_index_or_key(object, accesskey)] || :undef
     end
 
     # Assign value to this hashkey or array index

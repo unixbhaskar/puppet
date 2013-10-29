@@ -10,14 +10,14 @@ module Puppet::Util::Profiler
 
   NONE = Puppet::Util::Profiler::None.new
 
-  # @return This thread's configured profiler
+  # @returns This thread's configured profiler
   def self.current
-    @profiler || NONE
+    Thread.current[:profiler] || NONE
   end
 
   # @param profiler [#profile] A profiler for the current thread
   def self.current=(profiler)
-    @profiler = profiler
+    Thread.current[:profiler] = profiler
   end
 
   # @param message [String] A description of the profiled event

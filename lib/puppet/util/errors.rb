@@ -22,7 +22,6 @@ module Puppet::Util::Errors
   def adderrorcontext(error, other = nil)
     error.line ||= self.line if error.respond_to?(:line=) and self.respond_to?(:line) and self.line
     error.file ||= self.file if error.respond_to?(:file=) and self.respond_to?(:file) and self.file
-    error.original ||= other if error.respond_to?(:original=)
 
     error.set_backtrace(other.backtrace) if other and other.respond_to?(:backtrace)
 

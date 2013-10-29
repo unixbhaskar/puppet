@@ -133,44 +133,50 @@ describe Puppet::Resource::Catalog::Compiler do
 
   describe "when extracting facts from the request" do
     before do
-      Puppet::Node::Facts.indirection.terminus_class = :memory
       Facter.stubs(:value).returns "something"
       @compiler = Puppet::Resource::Catalog::Compiler.new
+      @request = Puppet::Indirector::Request.new(:catalog, :find, "hostname", nil)
 
       @facts = Puppet::Node::Facts.new('hostname', "fact" => "value", "architecture" => "i386")
-    end
-
-    def a_request_that_contains(facts)
-      request = Puppet::Indirector::Request.new(:catalog, :find, "hostname", nil)
-      request.options[:facts_format] = "pson"
-      request.options[:facts] = CGI.escape(facts.render(:pson))
-      request
+      Puppet::Node::Facts.indirection.stubs(:save).returns(nil)
     end
 
     it "should do nothing if no facts are provided" do
-      request = Puppet::Indirector::Request.new(:catalog, :find, "hostname", nil)
-      request.options[:facts] = nil
+      Puppet::Node::Facts.indirection.expects(:convert_from).never
+      @request.options[:facts] = nil
 
-      @compiler.extract_facts_from_request(request).should be_nil
+      @compiler.extract_facts_from_request(@request)
     end
 
-    it "deserializes the facts and timestamps them" do
+    it "should use the Facts class to deserialize the provided facts and update the timestamp" do
+      @request.options[:facts_format] = "foo"
+      @request.options[:facts] = "bar"
+      Puppet::Node::Facts.expects(:convert_from).returns @facts
+
       @facts.timestamp = Time.parse('2010-11-01')
-      request = a_request_that_contains(@facts)
-      now = Time.parse('2010-11-02')
-      Time.stubs(:now).returns(now)
+      @now = Time.parse('2010-11-02')
+      Time.stubs(:now).returns(@now)
 
-      facts = @compiler.extract_facts_from_request(request)
+      @compiler.extract_facts_from_request(@request)
+      @facts.timestamp.should == @now
+    end
 
-      facts.timestamp.should == now
+    it "should use the provided fact format" do
+      @request.options[:facts_format] = "foo"
+      @request.options[:facts] = "bar"
+      Puppet::Node::Facts.expects(:convert_from).with { |format, text| format == "foo" }.returns @facts
+
+      @compiler.extract_facts_from_request(@request)
     end
 
     it "should convert the facts into a fact instance and save it" do
-      request = a_request_that_contains(@facts)
+      @request.options[:facts_format] = "foo"
+      @request.options[:facts] = "bar"
+      Puppet::Node::Facts.expects(:convert_from).returns @facts
 
-      Puppet::Node::Facts.indirection.expects(:save).with(equals(@facts))
+      Puppet::Node::Facts.indirection.expects(:save).with(@facts)
 
-      @compiler.extract_facts_from_request(request)
+      @compiler.extract_facts_from_request(@request)
     end
   end
 

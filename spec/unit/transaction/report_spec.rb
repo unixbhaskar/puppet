@@ -1,7 +1,6 @@
 #! /usr/bin/env ruby
 require 'spec_helper'
 
-require 'puppet'
 require 'puppet/transaction/report'
 
 describe Puppet::Transaction::Report do
@@ -33,20 +32,10 @@ describe Puppet::Transaction::Report do
     Puppet::Transaction::Report.new("inspect", "some configuration version", "some environment").configuration_version.should == "some configuration version"
   end
 
-  it "should take a 'transaction_uuid' as an argument" do
-    Puppet::Transaction::Report.new("inspect", "some configuration version", "some environment", "some transaction uuid").transaction_uuid.should == "some transaction uuid"
-  end
-
   it "should be able to set configuration_version" do
     report = Puppet::Transaction::Report.new("inspect")
     report.configuration_version = "some version"
     report.configuration_version.should == "some version"
-  end
-
-  it "should be able to set transaction_uuid" do
-    report = Puppet::Transaction::Report.new("inspect")
-    report.transaction_uuid = "some transaction uuid"
-    report.transaction_uuid.should == "some transaction uuid"
   end
 
   it "should take 'environment' as an argument" do
@@ -90,18 +79,6 @@ describe Puppet::Transaction::Report do
     it "should return self" do
       r = @report << "log"
       r.should equal(@report)
-    end
-  end
-
-  describe "#as_logging_destination" do
-    it "makes the report collect logs during the block " do
-      log_string = 'Hello test report!'
-      report = Puppet::Transaction::Report.new('test')
-      report.as_logging_destination do
-        Puppet.err(log_string)
-      end
-
-      expect(report.logs.collect(&:message)).to include(log_string)
     end
   end
 
@@ -374,92 +351,4 @@ describe Puppet::Transaction::Report do
       report.to_yaml_properties.should_not include('@external_times')
     end
   end
-
-  it "defaults to serializing to pson" do
-    expect(Puppet::Transaction::Report.supported_formats).to eq([:pson])
-  end
-
-  it "can make a round trip through pson" do
-    Puppet[:report_serialization_format] = "pson"
-    report = generate_report
-
-    tripped = Puppet::Transaction::Report.convert_from(:pson, report.render)
-
-    expect_equivalent_reports(tripped, report)
-  end
-
-  it "can make a round trip through yaml" do
-    Puppet[:report_serialization_format] = "yaml"
-    report = generate_report
-
-    yaml_output = report.render
-    tripped = Puppet::Transaction::Report.convert_from(:yaml, yaml_output)
-
-    yaml_output.should =~ /^--- /
-    expect_equivalent_reports(tripped, report)
-  end
-
-  def expect_equivalent_reports(tripped, report)
-    tripped.host.should == report.host
-    tripped.time.to_i.should == report.time.to_i
-    tripped.configuration_version.should == report.configuration_version
-    tripped.transaction_uuid.should == report.transaction_uuid
-    tripped.report_format.should == report.report_format
-    tripped.puppet_version.should == report.puppet_version
-    tripped.kind.should == report.kind
-    tripped.status.should == report.status
-    tripped.environment.should == report.environment
-
-    logs_as_strings(tripped).should == logs_as_strings(report)
-    metrics_as_hashes(tripped).should == metrics_as_hashes(report)
-    expect_equivalent_resource_statuses(tripped.resource_statuses, report.resource_statuses)
-  end
-
-  def logs_as_strings(report)
-    report.logs.map(&:to_report)
-  end
-
-  def metrics_as_hashes(report)
-    Hash[*report.metrics.collect do |name, m|
-      [name, { :name => m.name, :label => m.label, :value => m.value }]
-    end.flatten]
-  end
-
-  def expect_equivalent_resource_statuses(tripped, report)
-    tripped.keys.sort.should == report.keys.sort
-
-    tripped.each_pair do |name, status|
-      expected = report[name]
-
-      status.title.should == expected.title
-      status.file.should == expected.file
-      status.line.should == expected.line
-      status.resource.should == expected.resource
-      status.resource_type.should == expected.resource_type
-      status.containment_path.should == expected.containment_path
-      status.evaluation_time.should == expected.evaluation_time
-      status.tags.should == expected.tags
-      status.time.to_i.should == expected.time.to_i
-      status.failed.should == expected.failed
-      status.changed.should == expected.changed
-      status.out_of_sync.should == expected.out_of_sync
-      status.skipped.should == expected.skipped
-      status.change_count.should == expected.change_count
-      status.out_of_sync_count.should == expected.out_of_sync_count
-      status.events.should == expected.events
-    end
-  end
-
-  def generate_report
-    status = Puppet::Resource::Status.new(Puppet::Type.type(:notify).new(:title => "a resource"))
-    status.changed = true
-
-    report = Puppet::Transaction::Report.new('testy', 1357986, 'test_environment', "df34516e-4050-402d-a166-05b03b940749")
-    report << Puppet::Util::Log.new(:level => :warning, :message => "log message")
-    report.add_times("timing", 4)
-    report.add_resource_status(status)
-    report.finalize_report
-    report
-  end
-
 end

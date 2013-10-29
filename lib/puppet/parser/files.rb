@@ -1,28 +1,31 @@
 require 'puppet/module'
+#require 'puppet/parser/parser'
 
+# This is a silly central module for finding
+# different kinds of files while parsing.  This code
+# doesn't really belong in the Puppet::Module class,
+# but it doesn't really belong anywhere else, either.
 module Puppet; module Parser; module Files
-
+  
   module_function
 
-  # Return a list of manifests as absolute filenames matching the given 
-  # pattern.
-  #
-  # @param pattern [String] A reference for a file in a module. It is the format "<modulename>/<file glob>"
-  # @param environment [Puppet::Node::Environment] the environment of modules
-  #
-  # @return [Array(String, Array<String>)] the module name and the list of files found
-  # @api private
-  def find_manifests_in_modules(pattern, environment)
-    module_name, file_pattern = split_file_path(pattern)
+  # Return a list of manifests (as absolute filenames) that match +pat+
+  # with the current directory set to +cwd+. If the first component of
+  # +pat+ does not contain any wildcards and is an existing module, return
+  # a list of manifests in that module matching the rest of +pat+
+  # Otherwise, try to find manifests matching +pat+ relative to +cwd+
+  def find_manifests(start, options = {})
+    cwd = options[:cwd] || Dir.getwd
+    module_name, pattern = split_file_path(start)
     begin
-      if mod = Puppet::Module.find(module_name, environment)
-        return [mod.name, mod.match_manifests(file_pattern)]
+      if mod = Puppet::Module.find(module_name, options[:environment])
+        return [mod.name, mod.match_manifests(pattern)]
       end
     rescue Puppet::Module::InvalidName
-      # one of the modules being loaded might have an invalid name and so
-      # looking for one might blow up since we load them lazily.
+      # Than that would be a "no."
     end
-    [nil, []]
+    abspat = File::expand_path(start, cwd)
+    [nil, Dir.glob(abspat + (File.extname(abspat).empty? ? '{.pp,.rb}' : '' )).uniq.reject { |f| FileTest.directory?(f) }]
   end
 
   # Find the concrete file denoted by +file+. If +file+ is absolute,
@@ -78,12 +81,9 @@ module Puppet; module Parser; module Files
 
   # Split the path into the module and the rest of the path, or return
   # nil if the path is empty or absolute (starts with a /).
+  # This method can return nil & anyone calling it needs to handle that.
   def split_file_path(path)
-    if path == "" or Puppet::Util.absolute_path?(path)
-      nil
-    else
-      path.split(File::SEPARATOR, 2)
-    end
+    path.split(File::SEPARATOR, 2) unless path == "" or Puppet::Util.absolute_path?(path)
   end
 
 end; end; end

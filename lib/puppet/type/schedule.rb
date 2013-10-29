@@ -418,11 +418,6 @@ module Puppet
 
     def self.mkdefaultschedules
       result = []
-      unless Puppet[:default_schedules]
-        Puppet.debug "Not creating default schedules: default_schedules is false"
-        return result
-      end
-
       Puppet.debug "Creating default schedules"
 
             result << self.new(

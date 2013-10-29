@@ -42,23 +42,27 @@ describe Puppet::Util::Tagging, "when adding tags" do
   end
 
   it "should fail on tags containing '*' characters" do
-    expect { @tagger.tag("bad*tag") }.to raise_error(Puppet::ParseError)
+    lambda { @tagger.tag("bad*tag") }.should raise_error(Puppet::ParseError)
   end
 
   it "should fail on tags starting with '-' characters" do
-    expect { @tagger.tag("-badtag") }.to raise_error(Puppet::ParseError)
+    lambda { @tagger.tag("-badtag") }.should raise_error(Puppet::ParseError)
   end
 
   it "should fail on tags containing ' ' characters" do
-    expect { @tagger.tag("bad tag") }.to raise_error(Puppet::ParseError)
+    lambda { @tagger.tag("bad tag") }.should raise_error(Puppet::ParseError)
   end
 
   it "should allow alpha tags" do
-    expect { @tagger.tag("good_tag") }.to_not raise_error
+    lambda { @tagger.tag("good_tag") }.should_not raise_error(Puppet::ParseError)
   end
 
   it "should allow tags containing '.' characters" do
-    expect { @tagger.tag("good.tag") }.to_not raise_error
+    lambda { @tagger.tag("good.tag") }.should_not raise_error(Puppet::ParseError)
+  end
+
+  it "should provide a method for testing tag validity" do
+    @tagger.singleton_class.publicize_methods(:valid_tag?)  { @tagger.should be_respond_to(:valid_tag?) }
   end
 
   it "should add qualified classes as tags" do

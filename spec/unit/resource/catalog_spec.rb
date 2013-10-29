@@ -1,22 +1,5 @@
 #! /usr/bin/env ruby
 require 'spec_helper'
-require 'puppet_spec/compiler'
-
-# the json-schema gem doesn't support windows
-if not Puppet.features.microsoft_windows?
-  require 'json'
-  require 'json-schema'
-
-  JSON_META_SCHEMA = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../../../api/schemas/json-meta-schema.json')))
-  CATALOG_SCHEMA = JSON.parse(File.read(File.join(File.dirname(__FILE__), '../../../api/schemas/catalog.json')))
-
-  describe "catalog schema" do
-    it "should validate against the json meta-schema" do
-      JSON::Validator.validate!(JSON_META_SCHEMA, CATALOG_SCHEMA)
-    end
-  end
-
-end
 
 describe Puppet::Resource::Catalog, "when compiling" do
   include PuppetSpec::Files
@@ -277,9 +260,7 @@ describe Puppet::Resource::Catalog, "when compiling" do
 
     it "should add resources to the relationship graph if it exists" do
       relgraph = @catalog.relationship_graph
-
       @catalog.add_resource @one
-
       relgraph.should be_vertex(@one)
     end
 
@@ -292,21 +273,6 @@ describe Puppet::Resource::Catalog, "when compiling" do
       @catalog.add_resource(@one)
       @catalog.resource(@one.ref).must equal(@one)
       @catalog.vertices.find { |r| r.ref == @one.ref }.must equal(@one)
-    end
-
-    it "tracks the container through edges" do
-      @catalog.add_resource(@two)
-      @catalog.add_resource(@one)
-
-      @catalog.add_edge(@one, @two)
-
-      @catalog.container_of(@two).must == @one
-    end
-
-    it "a resource without a container is contained in nil" do
-      @catalog.add_resource(@one)
-
-      @catalog.container_of(@one).must be_nil
     end
 
     it "should canonize how resources are referred to during retrieval when both type and title are provided" do
@@ -343,6 +309,10 @@ describe Puppet::Resource::Catalog, "when compiling" do
           error.message.should match %r[at /path/to/dupe/file:314]
         }
       end
+    end
+
+    it "should not store objects that do not respond to :ref" do
+      proc { @catalog.add_resource("thing") }.should raise_error(ArgumentError)
     end
 
     it "should remove all resources when asked" do
@@ -553,9 +523,10 @@ describe Puppet::Resource::Catalog, "when compiling" do
     before :each do
       @catalog = Puppet::Resource::Catalog.new("host")
 
-      @transaction = Puppet::Transaction.new(@catalog, nil, Puppet::Graph::RandomPrioritizer.new)
+      @transaction = Puppet::Transaction.new(@catalog)
       Puppet::Transaction.stubs(:new).returns(@transaction)
       @transaction.stubs(:evaluate)
+      @transaction.stubs(:add_times)
       @transaction.stubs(:for_network_device=)
 
       Puppet.settings.stubs(:use)
@@ -563,6 +534,18 @@ describe Puppet::Resource::Catalog, "when compiling" do
 
     it "should create and evaluate a transaction" do
       @transaction.expects(:evaluate)
+      @catalog.apply
+    end
+
+    it "should provide the catalog retrieval time to the transaction" do
+      @catalog.retrieval_duration = 5
+      @transaction.expects(:add_times).with(:config_retrieval => 5)
+      @catalog.apply
+    end
+
+    it "should use a retrieval time of 0 if none is set in the catalog" do
+      @catalog.retrieval_duration = nil
+      @transaction.expects(:add_times).with(:config_retrieval => 0)
       @catalog.apply
     end
 
@@ -644,15 +627,90 @@ describe Puppet::Resource::Catalog, "when compiling" do
 
   describe "when creating a relationship graph" do
     before do
+      Puppet::Type.type(:component)
       @catalog = Puppet::Resource::Catalog.new("host")
+      @compone = Puppet::Type::Component.new :name => "one"
+      @comptwo = Puppet::Type::Component.new :name => "two", :require => "Class[one]"
+      @file = Puppet::Type.type(:file)
+      @one = @file.new :path => @basepath+"/one"
+      @two = @file.new :path => @basepath+"/two"
+      @sub = @file.new :path => @basepath+"/two/subdir"
+      @catalog.add_edge @compone, @one
+      @catalog.add_edge @comptwo, @two
+
+      @three = @file.new :path => @basepath+"/three"
+      @four = @file.new :path => @basepath+"/four", :require => "File[#{@basepath}/three]"
+      @five = @file.new :path => @basepath+"/five"
+      @catalog.add_resource @compone, @comptwo, @one, @two, @three, @four, @five, @sub
+
+      @relationships = @catalog.relationship_graph
+    end
+
+    it "should be able to create a relationship graph" do
+      @relationships.should be_instance_of(Puppet::SimpleGraph)
+    end
+
+    it "should not have any components" do
+      @relationships.vertices.find { |r| r.instance_of?(Puppet::Type::Component) }.should be_nil
+    end
+
+    it "should have all non-component resources from the catalog" do
+      # The failures print out too much info, so i just do a class comparison
+      @relationships.vertex?(@five).should be_true
+    end
+
+    it "should have all resource relationships set as edges" do
+      @relationships.edge?(@three, @four).should be_true
+    end
+
+    it "should copy component relationships to all contained resources" do
+      @relationships.path_between(@one, @two).should be
+    end
+
+    it "should add automatic relationships to the relationship graph" do
+      @relationships.edge?(@two, @sub).should be_true
     end
 
     it "should get removed when the catalog is cleaned up" do
-      @catalog.relationship_graph.expects(:clear)
-
+      @relationships.expects(:clear)
       @catalog.clear
-
       @catalog.instance_variable_get("@relationship_graph").should be_nil
+    end
+
+    it "should write :relationships and :expanded_relationships graph files if the catalog is a host catalog" do
+      @catalog.clear
+      graph = Puppet::SimpleGraph.new
+      Puppet::SimpleGraph.expects(:new).returns graph
+
+      graph.expects(:write_graph).with(:relationships)
+      graph.expects(:write_graph).with(:expanded_relationships)
+
+      @catalog.host_config = true
+
+      @catalog.relationship_graph
+    end
+
+    it "should not write graph files if the catalog is not a host catalog" do
+      @catalog.clear
+      graph = Puppet::SimpleGraph.new
+      Puppet::SimpleGraph.expects(:new).returns graph
+
+      graph.expects(:write_graph).never
+
+      @catalog.host_config = false
+
+      @catalog.relationship_graph
+    end
+
+    it "should create a new relationship graph after clearing the old one" do
+      @relationships.expects(:clear)
+      @catalog.clear
+      @catalog.relationship_graph.should be_instance_of(Puppet::SimpleGraph)
+    end
+
+    it "should remove removed resources from the relationship graph if it exists" do
+      @catalog.remove_resource(@one)
+      @catalog.relationship_graph.vertex?(@one).should be_false
     end
   end
 
@@ -734,60 +792,6 @@ describe Puppet::Resource::Catalog, "when compiling" do
     it "should have all edges" do
       @newcatalog.edge?("one", "two").should be_true
     end
-  end
-end
-
-describe Puppet::Resource::Catalog, "when converting a resource catalog to pson" do
-  include PuppetSpec::Compiler
-
-  def validate_as_json(catalog)
-    JSON::Validator.validate!(CATALOG_SCHEMA, catalog.to_pson)
-  end
-
-  it "should validate an empty catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    empty_catalog = compile_to_catalog("")
-    validate_as_json(empty_catalog)
-  end
-
-  it "should validate a noop catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    noop_catalog = compile_to_catalog("create_resources('file', {})")
-    validate_as_json(noop_catalog)
-  end
-
-  it "should validate a single resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    catalog = compile_to_catalog("create_resources('file', {'/etc/foo'=>{'ensure'=>'present'}})")
-    validate_as_json(catalog)
-  end
-
-  it "should validate a virtual resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    catalog = compile_to_catalog("create_resources('@file', {'/etc/foo'=>{'ensure'=>'present'}})\nrealize(File['/etc/foo'])")
-    validate_as_json(catalog)
-  end
-
-  it "should validate a single exported resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    catalog = compile_to_catalog("create_resources('@@file', {'/etc/foo'=>{'ensure'=>'present'}})")
-    validate_as_json(catalog)
-  end
-
-  it "should validate a two resource catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    catalog = compile_to_catalog("create_resources('notify', {'foo'=>{'message'=>'one'}, 'bar'=>{'message'=>'two'}})")
-    validate_as_json(catalog)
-  end
-
-  it "should validate a two parameter class catalog against the schema", :unless => Puppet.features.microsoft_windows? do
-    catalog = compile_to_catalog(<<-MANIFEST)
-      class multi_param_class ($one, $two) {
-        notify {'foo':
-          message => "One is $one, two is $two",
-        }
-      }
-
-      class {'multi_param_class':
-        one => 'hello',
-        two => 'world',
-      }
-    MANIFEST
-    validate_as_json(catalog)
   end
 end
 
@@ -898,9 +902,8 @@ describe Puppet::Resource::Catalog, "when converting from pson" do
   it 'should convert the resources list into resources and add each of them' do
     @data['resources'] = [Puppet::Resource.new(:file, "/foo"), Puppet::Resource.new(:file, "/bar")]
 
-    catalog = PSON.parse @pson.to_pson
-
-    catalog.resources.collect(&:ref) == ["File[/foo]", "File[/bar]"]
+    @catalog.expects(:add_resource).times(2).with { |res| res.type == "File" }
+    PSON.parse @pson.to_pson
   end
 
   it 'should convert resources even if they do not include "type" information' do

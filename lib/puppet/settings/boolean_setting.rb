@@ -1,3 +1,5 @@
+require 'puppet/settings/base_setting'
+
 # A simple boolean.
 class Puppet::Settings::BooleanSetting < Puppet::Settings::BaseSetting
   # get the arguments in getopt format

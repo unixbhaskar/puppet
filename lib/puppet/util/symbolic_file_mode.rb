@@ -1,8 +1,6 @@
 require 'puppet/util'
 
-module Puppet
-module Util
-module SymbolicFileMode
+module Puppet::Util::SymbolicFileMode
   SetUIDBit = ReadBit  = 4
   SetGIDBit = WriteBit = 2
   StickyBit = ExecBit  = 1
@@ -139,6 +137,4 @@ module SymbolicFileMode
       final_mode['o'] << 0
     return result
   end
-end
-end
 end

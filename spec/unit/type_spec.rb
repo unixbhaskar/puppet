@@ -63,28 +63,6 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     end
   end
 
-  it "can retrieve all set parameters" do
-    resource = Puppet::Type.type(:mount).new(:name => "foo", :fstype => "bar", :pass => 1, :ensure => :present, :tag => 'foo')
-    params = resource.parameters_with_value
-    [:name, :provider, :ensure, :fstype, :pass, :dump, :target, :loglevel, :tag].each do |name|
-      params.should be_include(resource.parameter(name))
-    end
-  end
-
-  it "can not return any `nil` values when retrieving all set parameters" do
-    resource = Puppet::Type.type(:mount).new(:name => "foo", :fstype => "bar", :pass => 1, :ensure => :present, :tag => 'foo')
-    params = resource.parameters_with_value
-    params.should_not be_include(nil)
-  end
-
-  it "can return an iterator for all set parameters" do
-    resource = Puppet::Type.type(:notify).new(:name=>'foo',:message=>'bar',:tag=>'baz',:require=> "File['foo']")
-    params = [:name, :message, :withpath, :loglevel, :tag, :require]
-    resource.eachparameter { |param|
-      params.should be_include(param.to_s.to_sym)
-    }
-  end
-
   it "should have a method for setting default values for resources" do
     Puppet::Type.type(:mount).new(:name => "foo").must respond_to(:set_default)
   end
@@ -127,30 +105,26 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     Puppet::Type.type(:mount).new(:name => "foo").must respond_to(:virtual?)
   end
 
+  it "should consider its version to be its catalog version" do
+    resource = Puppet::Type.type(:mount).new(:name => "foo")
+    catalog = Puppet::Resource::Catalog.new
+    catalog.version = 50
+    catalog.add_resource resource
+
+    resource.version.should == 50
+  end
+
   it "should consider its version to be zero if it has no catalog" do
     Puppet::Type.type(:mount).new(:name => "foo").version.should == 0
   end
 
-  context "resource attributes" do
-    let(:resource) {
-      resource = Puppet::Type.type(:mount).new(:name => "foo")
-      catalog = Puppet::Resource::Catalog.new
-      catalog.version = 50
-      catalog.add_resource resource
-      resource
-    }
+  it "should provide source_descriptors" do
+    resource = Puppet::Type.type(:mount).new(:name => "foo")
+    catalog = Puppet::Resource::Catalog.new
+    catalog.version = 50
+    catalog.add_resource resource
 
-    it "should consider its version to be its catalog version" do
-      resource.version.should == 50
-    end
-
-    it "should have tags" do
-      resource.tags.should == ["mount", "foo"]
-    end
-
-    it "should have a path" do
-      resource.path.should == "/Mount[foo]"
-    end
+    resource.source_descriptors.should == {:tags=>["mount", "foo"], :path=>"/Mount[foo]"}
   end
 
   it "should consider its type to be the name of its class" do
@@ -339,10 +313,10 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
       end
 
       it "should copy the resource's parameters as its own" do
-        resource = Puppet::Resource.new(:mount, "/foo", :parameters => {:atboot => :yes, :fstype => "boo"})
+        resource = Puppet::Resource.new(:mount, "/foo", :parameters => {:atboot => true, :fstype => "boo"})
         params = Puppet::Type.type(:mount).new(resource).to_hash
         params[:fstype].should == "boo"
-        params[:atboot].should == :yes
+        params[:atboot].should == true
       end
     end
 
@@ -375,9 +349,9 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
       end
 
       it "should use any remaining hash keys as its parameters" do
-        resource = Puppet::Type.type(:mount).new(:title => "/foo", :catalog => "foo", :atboot => :yes, :fstype => "boo")
+        resource = Puppet::Type.type(:mount).new(:title => "/foo", :catalog => "foo", :atboot => true, :fstype => "boo")
         resource[:fstype].must == "boo"
-        resource[:atboot].must == :yes
+        resource[:atboot].must == true
       end
     end
 
@@ -408,12 +382,12 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     end
 
     it "should fail if no title, name, or namevar are provided" do
-      expect { Puppet::Type.type(:mount).new(:atboot => :yes) }.to raise_error(Puppet::Error)
+      expect { Puppet::Type.type(:file).new(:atboot => true) }.to raise_error(Puppet::Error)
     end
 
     it "should set the attributes in the order returned by the class's :allattrs method" do
       Puppet::Type.type(:mount).stubs(:allattrs).returns([:name, :atboot, :noop])
-      resource = Puppet::Resource.new(:mount, "/foo", :parameters => {:name => "myname", :atboot => :yes, :noop => "whatever"})
+      resource = Puppet::Resource.new(:mount, "/foo", :parameters => {:name => "myname", :atboot => "myboot", :noop => "whatever"})
 
       set = []
 
@@ -430,7 +404,7 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
 
     it "should always set the name and then default provider before anything else" do
       Puppet::Type.type(:mount).stubs(:allattrs).returns([:provider, :name, :atboot])
-      resource = Puppet::Resource.new(:mount, "/foo", :parameters => {:name => "myname", :atboot => :yes})
+      resource = Puppet::Resource.new(:mount, "/foo", :parameters => {:name => "myname", :atboot => "myboot"})
 
       set = []
 
@@ -455,7 +429,7 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     end
 
     it "should retain a copy of the originally provided parameters" do
-      Puppet::Type.type(:mount).new(:name => "foo", :atboot => :yes, :noop => false).original_parameters.should == {:atboot => :yes, :noop => false}
+      Puppet::Type.type(:mount).new(:name => "foo", :atboot => true, :noop => false).original_parameters.should == {:atboot => true, :noop => false}
     end
 
     it "should delete the name via the namevar from the originally provided parameters" do
@@ -489,28 +463,6 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
           )
         end.to raise_error(Puppet::ResourceError, /Validation.*example.pp:42/)
       end
-    end
-  end
-
-  describe "when #finish is called on a type" do
-    let(:post_hook_type) do
-      Puppet::Type.newtype(:finish_test) do
-        newparam(:name) { isnamevar }
-
-        newparam(:post) do
-          def post_compile_hook
-            raise "post_compile hook ran"
-          end
-        end
-      end
-    end
-
-    let(:post_hook_resource) do
-      post_hook_type.new(:name => 'foo',:post => 'fake_value')
-    end
-
-    it "should call #post_compile_hook on parameters that implement it" do
-      expect { post_hook_resource.finish }.to raise_error(RuntimeError, "post_compile hook ran")
     end
   end
 
@@ -583,9 +535,9 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     end
 
     it "should set the name of the returned resource if its own name and title differ" do
-      @resource[:name] = "myname"
+      @resource[:name] = "my name"
       @resource.title = "other name"
-      @resource.retrieve_resource[:name].should == "myname"
+      @resource.retrieve_resource[:name].should == "my name"
     end
 
     it "should provide a value for all set properties" do

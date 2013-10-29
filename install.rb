@@ -107,8 +107,7 @@ end
 
 def do_libs(libs, strip = 'lib/')
   libs.each do |lf|
-    next if File.directory? lf
-    olf = File.join(InstallOptions.site_dir, lf.sub(/^#{strip}/, ''))
+    olf = File.join(InstallOptions.site_dir, lf.gsub(/#{strip}/, ''))
     op = File.dirname(olf)
     if $haveftools
       File.makedirs(op, true)
@@ -415,7 +414,7 @@ FileUtils.cd File.dirname(__FILE__) do
   rdoc  = glob(%w{bin/* lib/**/*.rb README* }).reject { |e| e=~ /\.(bat|cmd)$/ }
   ri    = glob(%w{bin/*.rb lib/**/*.rb}).reject { |e| e=~ /\.(bat|cmd)$/ }
   man   = glob(%w{man/man[0-9]/*})
-  libs  = glob(%w{lib/**/*})
+  libs  = glob(%w{lib/**/*.rb lib/**/*.erb lib/**/*.py lib/puppet/util/command_line/*})
 
   check_prereqs
   prepare_installation

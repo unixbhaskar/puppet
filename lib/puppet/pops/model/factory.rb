@@ -11,8 +11,6 @@ class Puppet::Pops::Model::Factory
 
   attr_accessor :current
 
-  alias_method :model, :current
-
   # Shared build_visitor, since there are many instances of Factory being used
   @@build_visitor = Puppet::Pops::Visitor.new(self, "build")
   # Initialize a factory with a single object, or a class with arguments applied to build of
@@ -182,14 +180,10 @@ class Puppet::Pops::Model::Factory
   end
 
   # Builds body :) from different kinds of input
-  # @overload f_build_body(nothing)
-  #   @param nothing [nil] unchanged, produces nil
-  # @overload f_build_body(array)
-  #   @param array [Array<Expression>] turns into a BlockExpression
-  # @overload f_build_body(expr)
-  #   @param expr [Expression] produces the given expression
-  # @overload f_build_body(obj)
-  #   @param obj [Object] produces the result of calling #build with body as argument
+  # @param body [nil] unchanged, produces nil
+  # @param body [Array<Expression>] turns into a BlockExpression
+  # @param body [Expression] produces the given expression
+  # @param body [Object] produces the result of calling #build with body as argument
   def f_build_body(body)
     case body
     when NilClass
@@ -435,7 +429,7 @@ class Puppet::Pops::Model::Factory
   # Does nothing if file is nil.
   #
   # @param file [String,nil] the file/path to the origin, may contain URI scheme of file: or some other URI scheme
-  # @return [Factory] returns self
+  # @returns [Factory] returns self
   #
   def record_origin(file)
     return self unless file
@@ -466,8 +460,8 @@ class Puppet::Pops::Model::Factory
   # Returns symbolic information about an expected share of a resource expression given the LHS of a resource expr.
   #
   # * `name { }` => `:resource`,  create a resource of the given type
-  # * `Name { }` => ':defaults`, set defaults for the referenced type
-  # * `Name[] { }` => `:override`, overrides instances referenced by LHS
+  # * `Name { }` => ':defaults`, set defauls for the referenced type
+  # * `Name[] { }` => `:override`, ioverrides nstances referenced by LHS
   # * _any other_ => ':error', all other are considered illegal
   #
   def self.resource_shape(expr)
@@ -663,20 +657,14 @@ class Puppet::Pops::Model::Factory
           memo[-1] = Puppet::Pops::Model::Factory.IMPORT(expr.is_a?(Array) ? expr : [expr])
         else
           memo[-1] = Puppet::Pops::Model::Factory.CALL_NAMED(name, false, expr.is_a?(Array) ? expr : [expr])
-          if expr.is_a?(Model::CallNamedFunctionExpression)
-            # Patch statement function call to expression style
-            # This is needed because it is first parsed as a "statement" and the requirement changes as it becomes
-            # an argument to the name to call transform above.
-            expr.rval_required = true
-          end
         end
       else
         memo << expr
-        if expr.is_a?(Model::CallNamedFunctionExpression)
-          # Patch rvalue expression function call to statement style.
-          # This is not really required but done to be AST model compliant
-          expr.rval_required = false
-        end
+      end
+      if expr.is_a?(Model::CallNamedFunctionExpression)
+        # patch expression function call to statement style
+        # TODO: This is kind of meaningless, but to make it compatible...
+        expr.rval_required = false
       end
       memo
     end

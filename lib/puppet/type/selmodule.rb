@@ -1,5 +1,5 @@
 #
-# Simple module for managing SELinux policy modules
+# Simple module for manageing SELinux policy modules
 #
 
 Puppet::Type.newtype(:selmodule) do
