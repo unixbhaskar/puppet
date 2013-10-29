@@ -37,16 +37,12 @@ class Puppet::Indirector::Request
     request
   end
 
-  def to_pson(*args)
+  def to_data_hash
     result = {
-      'document_type' => 'IndirectorRequest',
-      'data' => {
-        'type' => indirection_name,
-        'method' => method,
-        'key' => key
-      }
+      'type' => indirection_name,
+      'method' => method,
+      'key' => key
     }
-    data = result['data']
     attributes = {}
     OPTION_ATTRIBUTES.each do |key|
       next unless value = send(key)
@@ -57,10 +53,20 @@ class Puppet::Indirector::Request
       attributes[opt] = value
     end
 
-    data['attributes'] = attributes unless attributes.empty?
-    data['instance'] = instance if instance
+    result['attributes'] = attributes unless attributes.empty?
+    result['instance'] = instance if instance
+    result
+  end
 
-    result.to_pson(*args)
+  def to_pson_data_hash
+    {
+      'document_type' => 'IndirectorRequest',
+      'data' => to_data_hash,
+    }
+  end
+
+  def to_pson(*args)
+    to_pson_data_hash.to_pson(*args)
   end
 
   # Is this an authenticated request?
@@ -158,8 +164,51 @@ class Puppet::Indirector::Request
 
   # Create the query string, if options are present.
   def query_string
+<<<<<<< HEAD
     return "" unless options and ! options.empty?
     "?" + options.collect do |key, value|
+=======
+    return "" if options.nil? || options.empty?
+
+    # For backward compatibility with older (pre-3.3) masters,
+    # this puppet option allows serialization of query parameter
+    # arrays as yaml.  This can be removed when we remove yaml
+    # support entirely.
+    if Puppet.settings[:legacy_query_parameter_serialization]
+      replace_arrays_with_yaml
+    end
+
+    "?" + encode_params(expand_into_parameters(options.to_a))
+  end
+
+  def replace_arrays_with_yaml
+    options.each do |key, value|
+      case value
+        when Array
+          options[key] = YAML.dump(value)
+      end
+    end
+  end
+
+  def expand_into_parameters(data)
+    data.inject([]) do |params, key_value|
+      key, value = key_value
+
+      expanded_value = case value
+                       when Array
+                         value.collect { |val| [key, val] }
+                       else
+                         [key_value]
+                       end
+
+      params.concat(expand_primitive_types_into_parameters(expanded_value))
+    end
+  end
+
+  def expand_primitive_types_into_parameters(data)
+    data.inject([]) do |params, key_value|
+      key, value = key_value
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
       case value
       when nil; next
       when true, false; value = value.to_s

@@ -10,6 +10,10 @@ class Puppet::Status
     @status = status || {"is_alive" => true}
   end
 
+  def to_data_hash
+    @status
+  end
+
   def to_pson(*args)
     @status.to_pson
   end
@@ -24,5 +28,13 @@ class Puppet::Status
 
   def name=(name)
     # NOOP
+  end
+
+  def version
+    @status['version']
+  end
+
+  def version=(version)
+    @status['version'] = version
   end
 end

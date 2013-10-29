@@ -3,6 +3,19 @@ require 'spec_helper'
 require 'puppet/configurer'
 require 'puppet/configurer/fact_handler'
 
+<<<<<<< HEAD
+=======
+# the json-schema gem doesn't support windows
+if not Puppet.features.microsoft_windows?
+  describe "catalog facts schema" do
+    it "should validate against the json meta-schema" do
+      JSON::Validator.validate!(JSON_META_SCHEMA, FACTS_SCHEMA)
+    end
+  end
+
+ end
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 class FactHandlerTester
   include Puppet::Configurer::FactHandler
 end
@@ -81,7 +94,12 @@ describe Puppet::Configurer::FactHandler do
 
     @facthandler.expects(:find_facts).returns facts
 
+<<<<<<< HEAD
     @facthandler.facts_for_uploading.should == {:facts_format => :b64_zlib_yaml, :facts => text}
+=======
+  def validate_json_for_facts(catalog_facts)
+    JSON::Validator.validate!(FACTS_SCHEMA, catalog_facts)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   it "use compressed yaml as the serialization if zlib is supported" do
@@ -90,9 +108,13 @@ describe Puppet::Configurer::FactHandler do
     facts.expects(:render).with(:b64_zlib_yaml).returns "my text"
     text = CGI.escape("my text")
 
+<<<<<<< HEAD
     @facthandler.expects(:find_facts).returns facts
 
     @facthandler.facts_for_uploading
+=======
+    validate_json_for_facts(CGI.unescape(@facthandler.facts_for_uploading[:facts]))
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   it "should use yaml as the serialization if zlib is not supported" do

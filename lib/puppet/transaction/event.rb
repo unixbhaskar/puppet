@@ -2,12 +2,14 @@ require 'puppet/transaction'
 require 'puppet/util/tagging'
 require 'puppet/util/logging'
 require 'puppet/util/methodhelper'
+require 'puppet/network/format_support'
 
 # A simple struct for storing what happens on the system.
 class Puppet::Transaction::Event
   include Puppet::Util::MethodHelper
   include Puppet::Util::Tagging
   include Puppet::Util::Logging
+  include Puppet::Network::FormatSupport
 
   ATTRIBUTES = [:name, :resource, :property, :previous_value, :desired_value, :historical_value, :status, :message, :file, :line, :source_description, :audited, :invalidate_refreshes]
   YAML_ATTRIBUTES = %w{@audited @property @previous_value @desired_value @historical_value @message @name @status @time}.map(&:to_sym)
@@ -24,6 +26,40 @@ class Puppet::Transaction::Event
     @time = Time.now
   end
 
+<<<<<<< HEAD
+=======
+  def initialize_from_hash(data)
+    @audited = data['audited']
+    @property = data['property']
+    @previous_value = data['previous_value']
+    @desired_value = data['desired_value']
+    @historical_value = data['historical_value']
+    @message = data['message']
+    @name = data['name'].intern if data['name']
+    @status = data['status']
+    @time = data['time']
+    @time = Time.parse(@time) if @time.is_a? String
+  end
+
+  def to_data_hash
+    {
+      'audited' => @audited,
+      'property' => @property,
+      'previous_value' => @previous_value,
+      'desired_value' => @desired_value,
+      'historical_value' => @historical_value,
+      'message' => @message,
+      'name' => @name,
+      'status' => @status,
+      'time' => @time.iso8601(9),
+    }
+  end
+
+  def to_pson(*args)
+    to_data_hash.to_pson(*args)
+  end
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   def property=(prop)
     @property = prop.to_s
   end
@@ -49,7 +85,7 @@ class Puppet::Transaction::Event
   end
 
   def to_yaml_properties
-    YAML_ATTRIBUTES & instance_variables
+    YAML_ATTRIBUTES & super
   end
 
   private

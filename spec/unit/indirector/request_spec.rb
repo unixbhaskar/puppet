@@ -298,10 +298,48 @@ describe Puppet::Indirector::Request do
       @request.query_string.should == "?one=#{escaping}"
     end
 
+<<<<<<< HEAD
     it "should YAML-dump and CGI-escape arrays" do
       escaping = CGI.escape(YAML.dump(%w{one two}))
       @request.stubs(:options).returns(:one => %w{one two})
       @request.query_string.should == "?one=#{escaping}"
+=======
+    it "should convert an array of values into multiple entries for the same key" do
+      request = a_request_with_options(:one => %w{one two})
+
+      the_parsed_query_string_from(request).should == {
+        "one" => ["one", "two"]
+      }
+    end
+
+    it "should convert an array of values into a single yaml entry when in legacy mode" do
+      Puppet[:legacy_query_parameter_serialization] = true
+      request = a_request_with_options(:one => %w{one two})
+
+      the_parsed_query_string_from(request).should == {
+          "one" => ["--- \n  - one\n  - two"]
+      }
+    end
+
+    it "should stringify simple data types inside an array" do
+      request = a_request_with_options(:one => ['one', nil])
+
+      the_parsed_query_string_from(request).should == {
+        "one" => ["one"]
+      }
+    end
+
+    it "should error if an array contains another array" do
+      request = a_request_with_options(:one => ['one', ["not allowed"]])
+
+      expect { request.query_string }.to raise_error(ArgumentError)
+    end
+
+    it "should error if an array contains illegal data" do
+      request = a_request_with_options(:one => ['one', { :not => "allowed" }])
+
+      expect { request.query_string }.to raise_error(ArgumentError)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
 
     it "should convert to a string and CGI-escape all option values that are symbols" do

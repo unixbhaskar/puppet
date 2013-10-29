@@ -128,10 +128,22 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
     end
     result = deserialize(response)
 
+<<<<<<< HEAD
     return nil unless result
 
     result.name = request.key if result.respond_to?(:name=)
     result
+=======
+    if is_http_200?(response)
+      check_master_version(response)
+      content_type, body = parse_response(response)
+      result = deserialize_find(content_type, body)
+      result.name = request.key if result.respond_to?(:name=)
+      result
+    else
+      nil
+    end
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   def head(request)
@@ -139,6 +151,7 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
       http_head(request, indirection2uri(request), headers)
     end
 
+<<<<<<< HEAD
     case response.code
     when "404"
       return false
@@ -147,6 +160,13 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
     else
       # Raise the http error if we didn't get a 'success' of some kind.
       raise convert_to_http_error(response)
+=======
+    if is_http_200?(response)
+      check_master_version(response)
+      true
+    else
+      false
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
   end
 
@@ -155,23 +175,59 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
       deserialize(http_get(request, indirection2uri(request), headers), true)
     end
 
+<<<<<<< HEAD
     # result from the server can be nil, but we promise to return an array...
     result || []
+=======
+    if is_http_200?(response)
+      check_master_version(response)
+      content_type, body = parse_response(response)
+      deserialize_search(content_type, body) || []
+    else
+      []
+    end
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   def destroy(request)
     raise ArgumentError, "DELETE does not accept options" unless request.options.empty?
 
+<<<<<<< HEAD
     do_request(request) do |request|
       return deserialize(http_delete(request, indirection2uri(request), headers))
+=======
+    response = do_request(request) do |request|
+      http_delete(request, indirection2uri(request), headers)
+    end
+
+    if is_http_200?(response)
+      check_master_version(response)
+      content_type, body = parse_response(response)
+      deserialize_destroy(content_type, body)
+    else
+      nil
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
   end
 
   def save(request)
     raise ArgumentError, "PUT does not accept options" unless request.options.empty?
 
+<<<<<<< HEAD
     do_request(request) do |request|
       deserialize http_put(request, indirection2uri(request), request.instance.render, headers.merge({ "Content-Type" => request.instance.mime }))
+=======
+    response = do_request(request) do |request|
+      http_put(request, indirection2uri(request), request.instance.render, headers.merge({ "Content-Type" => request.instance.mime }))
+    end
+
+    if is_http_200?(response)
+      check_master_version(response)
+      content_type, body = parse_response(response)
+      deserialize_save(content_type, body)
+    else
+      nil
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
   end
 
@@ -191,6 +247,66 @@ class Puppet::Indirector::REST < Puppet::Indirector::Terminus
 
   private
 
+<<<<<<< HEAD
+=======
+  def is_http_200?(response)
+    case response.code
+    when "404"
+      false
+    when /^2/
+      true
+    else
+      # Raise the http error if we didn't get a 'success' of some kind.
+      raise convert_to_http_error(response)
+    end
+  end
+
+  def convert_to_http_error(response)
+    message = "Error #{response.code} on SERVER: #{(response.body||'').empty? ? response.message : uncompress_body(response)}"
+    Net::HTTPError.new(message, response)
+  end
+
+  def check_master_version response
+    if !response[Puppet::Network::HTTP::HEADER_PUPPET_VERSION] &&
+       (Puppet[:legacy_query_parameter_serialization] == false || Puppet[:report_serialization_format] != "yaml")
+      Puppet.notice "Using less secure serialization of reports and query parameters for compatibility"
+      Puppet.notice "with older puppet master. To remove this notice, please upgrade your master(s) "
+      Puppet.notice "to Puppet 3.3 or newer."
+      Puppet.notice "See http://links.puppetlabs.com/deprecate_yaml_on_network for more information."
+      Puppet[:legacy_query_parameter_serialization] = true
+      Puppet[:report_serialization_format] = "yaml"
+    end
+  end
+
+  # Returns the content_type, stripping any appended charset, and the
+  # body, decompressed if necessary (content-encoding is checked inside
+  # uncompress_body)
+  def parse_response(response)
+    if response['content-type']
+      [ response['content-type'].gsub(/\s*;.*$/,''),
+        body = uncompress_body(response) ]
+    else
+      raise "No content type in http response; cannot parse"
+    end
+  end
+
+  def deserialize_find(content_type, body)
+    model.convert_from(content_type, body)
+  end
+
+  def deserialize_search(content_type, body)
+    model.convert_from_multiple(content_type, body)
+  end
+
+  def deserialize_destroy(content_type, body)
+    model.convert_from(content_type, body)
+  end
+
+  def deserialize_save(content_type, body)
+    nil
+  end
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   def environment
     Puppet::Node::Environment.new
   end

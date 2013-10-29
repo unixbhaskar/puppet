@@ -77,18 +77,32 @@ module Puppet::Network::HTTP::Handler
     request_method = http_method(request)
     request_path = path(request)
 
+    response[Puppet::Network::HTTP::HEADER_PUPPET_VERSION] = Puppet.version
+
     configure_profiler(request_headers, request_params)
 
     Puppet::Util::Profiler.profile("Processed request #{request_method} #{request_path}") do
-      indirection, method, key, params = uri2indirection(request_method, request_path, request_params)
+      indirection_name, method, key, params = uri2indirection(request_method, request_path, request_params)
 
-      check_authorization(indirection, method, key, params)
+      check_authorization(indirection_name, method, key, params)
       warn_if_near_expiration(client_cert(request))
+
+      indirection = Puppet::Indirector::Indirection.instance(indirection_name.to_sym)
+      raise ArgumentError, "Could not find indirection '#{indirection_name}'" unless indirection
+
+      if !indirection.allow_remote_requests?
+        raise HTTPNotFoundError, "No handler for #{indirection.name}"
+      end
 
       send("do_#{method}", indirection, key, params, request, response)
     end
+<<<<<<< HEAD
   rescue SystemExit,NoMemoryError
     raise
+=======
+  rescue HTTPError => e
+    return do_http_control_exception(response, e)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   rescue Exception => e
     return do_exception(response, e)
   ensure
@@ -111,19 +125,21 @@ module Puppet::Network::HTTP::Handler
       # for authorization issues
       status = 403 if status == 400
     end
+<<<<<<< HEAD
     if exception.is_a?(Exception)
       Puppet.log_exception(exception)
     end
+=======
+
+    Puppet.log_exception(exception)
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     set_content_type(response, "text/plain")
     set_response(response, exception.to_s, status)
   end
 
-  def model(indirection_name)
-    raise ArgumentError, "Could not find indirection '#{indirection_name}'" unless indirection = Puppet::Indirector::Indirection.instance(indirection_name.to_sym)
-    indirection.model
-  end
-
   # Execute our find.
+<<<<<<< HEAD
   def do_find(indirection_name, key, params, request, response)
     unless result = model(indirection_name).indirection.find(key, params)
       Puppet.info("Could not find #{indirection_name} for '#{key}'")
@@ -134,6 +150,14 @@ module Puppet::Network::HTTP::Handler
     # and it needs to be used for both the rendering and as
     # the content type.
     format = format_to_use(request)
+=======
+  def do_find(indirection, key, params, request, response)
+    unless result = indirection.find(key, params)
+      raise HTTPNotFoundError, "Could not find #{indirection.name} #{key}"
+    end
+
+    format = accepted_response_formatter_for(indirection.model, request)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     set_content_type(response, format)
 
     rendered_result = result
@@ -149,10 +173,16 @@ module Puppet::Network::HTTP::Handler
   end
 
   # Execute our head.
+<<<<<<< HEAD
   def do_head(indirection_name, key, params, request, response)
     unless self.model(indirection_name).indirection.head(key, params)
       Puppet.info("Could not find #{indirection_name} for '#{key}'")
       return do_exception(response, "Could not find #{indirection_name} #{key}", 404)
+=======
+  def do_head(indirection, key, params, request, response)
+    unless indirection.head(key, params)
+      raise HTTPNotFoundError, "Could not find #{indirection.name} #{key}"
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
 
     # No need to set a response because no response is expected from a
@@ -160,21 +190,28 @@ module Puppet::Network::HTTP::Handler
   end
 
   # Execute our search.
-  def do_search(indirection_name, key, params, request, response)
-    model  = self.model(indirection_name)
-    result = model.indirection.search(key, params)
+  def do_search(indirection, key, params, request, response)
+    result = indirection.search(key, params)
 
     if result.nil?
+<<<<<<< HEAD
       return do_exception(response, "Could not find instances in #{indirection_name} with '#{key}'", 404)
     end
 
     format = format_to_use(request)
+=======
+      raise HTTPNotFoundError, "Could not find instances in #{indirection.name} with '#{key}'"
+    end
+
+    format = accepted_response_formatter_for(indirection.model, request)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     set_content_type(response, format)
 
-    set_response(response, model.render_multiple(format, result))
+    set_response(response, indirection.model.render_multiple(format, result))
   end
 
   # Execute our destroy.
+<<<<<<< HEAD
   def do_destroy(indirection_name, key, params, request, response)
     result = model(indirection_name).indirection.destroy(key, params)
 
@@ -185,6 +222,23 @@ module Puppet::Network::HTTP::Handler
   def do_save(indirection_name, key, params, request, response)
     data = body(request).to_s
     raise ArgumentError, "No data to save" if !data or data.empty?
+=======
+  def do_destroy(indirection, key, params, request, response)
+    formatter = accepted_response_formatter_or_yaml_for(indirection.model, request)
+
+    result = indirection.destroy(key, params)
+
+    set_content_type(response, formatter)
+    set_response(response, formatter.render(result))
+  end
+
+  # Execute our save.
+  def do_save(indirection, key, params, request, response)
+    formatter = accepted_response_formatter_or_yaml_for(indirection.model, request)
+    sent_object = read_body_into_model(indirection.model, request)
+
+    result = indirection.save(sent_object, key)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 
     format = request_format(request)
     obj = model(indirection_name).convert_from(format, data)
@@ -205,9 +259,53 @@ module Puppet::Network::HTTP::Handler
 
   private
 
+<<<<<<< HEAD
   def return_yaml_response(response, body)
     set_content_type(response, Puppet::Network::FormatHandler.format("yaml"))
     set_response(response, body.to_yaml)
+=======
+  def do_http_control_exception(response, exception)
+    msg = exception.message
+    Puppet.info(msg)
+    set_content_type(response, "text/plain")
+    set_response(response, msg, exception.status)
+  end
+
+  def report_if_deprecated(format)
+    if format.name == :yaml || format.name == :b64_zlib_yaml
+      Puppet.deprecation_warning("YAML in network requests is deprecated and will be removed in a future version. See http://links.puppetlabs.com/deprecate_yaml_on_network")
+    end
+  end
+
+  def accepted_response_formatter_for(model_class, request)
+    accepted_formats = accept_header(request) or raise HTTPNotAcceptableError, "Missing required Accept header"
+    response_formatter_for(model_class, request, accepted_formats)
+  end
+
+  def accepted_response_formatter_or_yaml_for(model_class, request)
+    accepted_formats = accept_header(request) || "yaml"
+    response_formatter_for(model_class, request, accepted_formats)
+  end
+
+  def response_formatter_for(model_class, request, accepted_formats)
+    formatter = Puppet::Network::FormatHandler.most_suitable_format_for(
+      accepted_formats.split(/\s*,\s*/),
+      model_class.supported_formats)
+
+    if formatter.nil?
+      raise HTTPNotAcceptableError, "No supported formats are acceptable (Accept: #{accepted_formats})"
+    end
+
+    report_if_deprecated(formatter)
+    formatter
+  end
+
+  def read_body_into_model(model_class, request)
+    data = body(request).to_s
+
+    format = request_format(request)
+    model_class.convert_from(format, data)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   def get?(request)

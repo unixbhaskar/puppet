@@ -26,6 +26,30 @@ class PsonTest
 end
 
 describe "Puppet Network Format" do
+  it "should include a msgpack format", :if => Puppet.features.msgpack? do
+    Puppet::Network::FormatHandler.format(:msgpack).should_not be_nil
+  end
+
+  describe "msgpack", :if => Puppet.features.msgpack? do
+    before do
+      @msgpack = Puppet::Network::FormatHandler.format(:msgpack)
+    end
+
+    it "should have its mime type set to application/x-msgpack" do
+      @msgpack.mime.should == "application/x-msgpack"
+    end
+
+    it "should have a weight of 20" do
+      @msgpack.weight.should == 20
+    end
+
+    it "should fail when one element does not have a from_pson" do
+      expect do
+        @msgpack.intern_multiple(Hash, MessagePack.pack(["foo"]))
+      end.to raise_error(NoMethodError)
+    end
+  end
+
   it "should include a yaml format" do
     Puppet::Network::FormatHandler.format(:yaml).should_not be_nil
   end
@@ -61,16 +85,42 @@ describe "Puppet Network Format" do
       @yaml.intern(String, text).should == "bar"
     end
 
+<<<<<<< HEAD
     it "should safely load YAML when interning multiples" do
       text = "foo"
       YAML.expects(:safely_load).with("foo").returns "bar"
       @yaml.intern_multiple(String, text).should == "bar"
+=======
+    it "should deserialize symbols as strings" do
+      @yaml.intern(String, YAML.dump(:foo)).should == "foo"
+    end
+
+    it "should load from yaml when deserializing an array" do
+      text = YAML.dump(["foo"])
+      @yaml.intern_multiple(String, text).should == ["foo"]
+    end
+
+    it "fails intelligibly instead of calling to_pson with something other than a hash" do
+      expect do
+        @yaml.intern(Puppet::Node, '')
+      end.to raise_error(Puppet::Network::FormatHandler::FormatError, /did not contain a valid instance/)
+    end
+
+    it "fails intelligibly when intern_multiple is called and yaml doesn't decode to an array" do
+      expect do
+        @yaml.intern_multiple(Puppet::Node, '')
+      end.to raise_error(Puppet::Network::FormatHandler::FormatError, /did not contain a collection/)
+    end
+
+    it "fails intelligibly instead of calling to_pson with something other than a hash when interning multiple" do
+      expect do
+        @yaml.intern_multiple(Puppet::Node, YAML.dump(["hello"]))
+      end.to raise_error(Puppet::Network::FormatHandler::FormatError, /did not contain a valid instance/)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
   end
 
   describe "base64 compressed yaml", :if => Puppet.features.zlib? do
-    yaml = Puppet::Network::FormatHandler.format(:b64_zlib_yaml)
-
     before do
       @yaml = Puppet::Network::FormatHandler.format(:b64_zlib_yaml)
     end
@@ -284,6 +334,12 @@ describe "Puppet Network Format" do
         PsonTest.expects(:from_pson).with("bar").returns "BAR"
         PsonTest.expects(:from_pson).with("baz").returns "BAZ"
         @pson.intern_multiple(PsonTest, text).should == %w{BAR BAZ}
+      end
+
+      it "fails intelligibly when given invalid data" do
+        expect do
+          @pson.intern(Puppet::Node, '')
+        end.to raise_error(PSON::ParserError, /source did not contain any PSON/)
       end
     end
   end

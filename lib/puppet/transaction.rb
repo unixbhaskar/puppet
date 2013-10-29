@@ -5,6 +5,7 @@ require 'puppet'
 require 'puppet/util/tagging'
 require 'puppet/application'
 require 'digest/sha1'
+require 'set'
 
 class Puppet::Transaction
   require 'puppet/transaction/event'
@@ -31,11 +32,92 @@ class Puppet::Transaction
     Puppet::Application.stop_requested?
   end
 
+<<<<<<< HEAD
   # Add some additional times for reporting
   def add_times(hash)
     hash.each do |name, num|
       report.add_times(name, num)
     end
+=======
+  # This method does all the actual work of running a transaction.  It
+  # collects all of the changes, executes them, and responds to any
+  # necessary events.
+  def evaluate(&block)
+    block ||= method(:eval_resource)
+    generator = AdditionalResourceGenerator.new(@catalog, relationship_graph, @prioritizer)
+    @catalog.vertices.each { |resource| generator.generate_additional_resources(resource) }
+
+    Puppet.info "Applying configuration version '#{catalog.version}'" if catalog.version
+
+    continue_while = lambda { !stop_processing? }
+
+    post_evalable_providers = Set.new
+    pre_process = lambda do |resource|
+      prov_class = resource.provider.class
+      post_evalable_providers << prov_class if prov_class.respond_to?(:post_resource_eval)
+
+      prefetch_if_necessary(resource)
+
+      # If we generated resources, we don't know what they are now
+      # blocking, so we opt to recompute it, rather than try to track every
+      # change that would affect the number.
+      relationship_graph.clear_blockers if generator.eval_generate(resource)
+    end
+
+    providerless_types = []
+    overly_deferred_resource_handler = lambda do |resource|
+      # We don't automatically assign unsuitable providers, so if there
+      # is one, it must have been selected by the user.
+      if resource.provider
+        resource.err "Provider #{resource.provider.class.name} is not functional on this host"
+      else
+        providerless_types << resource.type
+      end
+
+      resource_status(resource).failed = true
+    end
+
+    canceled_resource_handler = lambda do |resource|
+      resource_status(resource).skipped = true
+      resource.debug "Transaction canceled, skipping"
+    end
+
+    teardown = lambda do
+      # Just once per type. No need to punish the user.
+      providerless_types.uniq.each do |type|
+        Puppet.err "Could not find a suitable provider for #{type}"
+      end
+
+      post_evalable_providers.each do |provider|
+        begin
+          provider.post_resource_eval
+        rescue => detail
+          Puppet.log_exception(detail, "post_resource_eval failed for provider #{provider}")
+        end
+      end
+    end
+
+    relationship_graph.traverse(:while => continue_while,
+                                :pre_process => pre_process,
+                                :overly_deferred_resource_handler => overly_deferred_resource_handler,
+                                :canceled_resource_handler => canceled_resource_handler,
+                                :teardown => teardown) do |resource|
+      if resource.is_a?(Puppet::Type::Component)
+        Puppet.warning "Somehow left a component in the relationship graph"
+      else
+        resource.info "Starting to evaluate the resource" if Puppet[:evaltrace] and @catalog.host_config?
+        seconds = thinmark { block.call(resource) }
+        resource.info "Evaluated in %0.2f seconds" % seconds if Puppet[:evaltrace] and @catalog.host_config?
+      end
+    end
+
+    Puppet.debug "Finishing transaction #{object_id}"
+  end
+
+  # Wraps application run state check to flag need to interrupt processing
+  def stop_processing?
+    Puppet::Application.stop_requested? && catalog.host_config?
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   # Are there any failed resources in this transaction?

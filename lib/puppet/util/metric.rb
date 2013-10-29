@@ -1,14 +1,37 @@
 # included so we can test object types
 require 'puppet'
+require 'puppet/network/format_support'
 
 # A class for handling metrics.  This is currently ridiculously hackish.
 class Puppet::Util::Metric
+  include Puppet::Network::FormatSupport
 
   attr_accessor :type, :name, :value, :label
   attr_writer :values
 
   attr_writer :basedir
 
+<<<<<<< HEAD
+=======
+  def self.from_pson(data)
+    metric = new(data['name'], data['label'])
+    metric.values = data['values']
+    metric
+  end
+
+  def to_data_hash
+    {
+      'name' => @name,
+      'label' => @label,
+      'values' => @values
+    }
+  end
+
+  def to_pson(*args)
+    to_data_hash.to_pson(*args)
+  end
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   # Return a specific value
   def [](name)
     if value = @values.find { |v| v[0] == name }

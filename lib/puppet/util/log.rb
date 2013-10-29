@@ -1,5 +1,6 @@
 require 'puppet/util/tagging'
 require 'puppet/util/classgen'
+require 'puppet/network/format_support'
 
 # Pass feedback to the user.  Log levels are modeled after syslog's, and it is
 # expected that that will be the most common log destination.  Supports
@@ -8,6 +9,7 @@ class Puppet::Util::Log
   include Puppet::Util
   extend Puppet::Util::ClassGen
   include Puppet::Util::Tagging
+  include Puppet::Network::FormatSupport
 
   @levels = [:debug,:info,:notice,:warning,:err,:alert,:emerg,:crit]
   @loglevel = 2
@@ -242,6 +244,42 @@ class Puppet::Util::Log
     Log.newmessage(self)
   end
 
+<<<<<<< HEAD
+=======
+  def initialize_from_hash(data)
+    @level = data['level'].intern
+    @message = data['message']
+    @source = data['source']
+    @tags = data['tags']
+    @time = data['time']
+    if @time.is_a? String
+      @time = Time.parse(@time)
+    end
+    @file = data['file'] if data['file']
+    @line = data['line'] if data['line']
+  end
+
+  def to_hash
+    self.to_data_hash
+  end
+
+  def to_data_hash
+    {
+      'level' => @level,
+      'message' => @message,
+      'source' => @source,
+      'tags' => @tags,
+      'time' => @time.iso8601(9),
+      'file' => @file,
+      'line' => @line,
+    }
+  end
+
+  def to_pson(*args)
+    to_data_hash.to_pson(*args)
+  end
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   def message=(msg)
     raise ArgumentError, "Puppet::Util::Log requires a message" unless msg
     @message = msg.to_s

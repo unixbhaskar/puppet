@@ -256,6 +256,7 @@ describe Puppet::Network::FormatHandler do
       FormatTester.new.should respond_to(:mime)
     end
 
+<<<<<<< HEAD
     it "should raise a FormatError when a rendering error is encountered" do
       format = stub 'rendering format', :supported? => true, :name => :foo
       Puppet::Network::FormatHandler.stubs(:format).with(:foo).returns format
@@ -264,6 +265,10 @@ describe Puppet::Network::FormatHandler do
       format.expects(:render).with(tester).raises "eh"
 
       lambda { tester.render(:foo) }.should raise_error(Puppet::Network::FormatHandler::FormatError)
+=======
+    it "finds the most preferred format when anything is acceptable" do
+      Puppet::Network::FormatHandler.most_suitable_format_for(["*/*"], [:two, :one]).should == format_two
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
 
     it "should call the format-specific converter when asked to convert to a given format" do

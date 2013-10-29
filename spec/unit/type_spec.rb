@@ -1,9 +1,10 @@
 #! /usr/bin/env ruby
 require 'spec_helper'
-
+require 'puppet_spec/compiler'
 
 describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
   include PuppetSpec::Files
+  include PuppetSpec::Compiler
 
   it "should be Comparable" do
     a = Puppet::Type.type(:notify).new(:name => "a")
@@ -118,11 +119,50 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     Puppet::Type.type(:mount).new(:name => "foo").version.should == 0
   end
 
+<<<<<<< HEAD
   it "should provide source_descriptors" do
     resource = Puppet::Type.type(:mount).new(:name => "foo")
     catalog = Puppet::Resource::Catalog.new
     catalog.version = 50
     catalog.add_resource resource
+=======
+  it "reports the correct path even after path is used during setup of the type" do
+    Puppet::Type.newtype(:testing) do
+      newparam(:name) do
+        isnamevar
+        validate do |value|
+          path # forces the computation of the path
+        end
+      end
+    end
+
+    ral = compile_to_ral(<<-MANIFEST)
+      class something {
+        testing { something: }
+      }
+      include something
+    MANIFEST
+
+    ral.resource("Testing[something]").path.should == "/Stage[main]/Something/Testing[something]"
+  end
+
+  context "resource attributes" do
+    let(:resource) {
+      resource = Puppet::Type.type(:mount).new(:name => "foo")
+      catalog = Puppet::Resource::Catalog.new
+      catalog.version = 50
+      catalog.add_resource resource
+      resource
+    }
+
+    it "should consider its version to be its catalog version" do
+      resource.version.should == 50
+    end
+
+    it "should have tags" do
+      resource.tags.should == ["mount", "foo"]
+    end
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 
     resource.source_descriptors.should == {:tags=>["mount", "foo"], :path=>"/Mount[foo]"}
   end
@@ -466,6 +506,31 @@ describe Puppet::Type, :unless => Puppet.features.microsoft_windows? do
     end
   end
 
+<<<<<<< HEAD
+=======
+  describe "when #finish is called on a type" do
+    let(:post_hook_type) do
+      Puppet::Type.newtype(:finish_test) do
+        newparam(:name) { isnamevar }
+
+        newparam(:post) do
+          def post_compile
+            raise "post_compile hook ran"
+          end
+        end
+      end
+    end
+
+    let(:post_hook_resource) do
+      post_hook_type.new(:name => 'foo',:post => 'fake_value')
+    end
+
+    it "should call #post_compile on parameters that implement it" do
+      expect { post_hook_resource.finish }.to raise_error(RuntimeError, "post_compile hook ran")
+    end
+  end
+
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   it "should have a class method for converting a hash into a Puppet::Resource instance" do
     Puppet::Type.type(:mount).must respond_to(:hash2resource)
   end

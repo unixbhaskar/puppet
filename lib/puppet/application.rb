@@ -379,14 +379,36 @@ class Application
   def setup_logs
     if options[:debug] or options[:verbose]
       Puppet::Util::Log.newdestination(:console)
+<<<<<<< HEAD
       if options[:debug]
         Puppet::Util::Log.level = :debug
       else
         Puppet::Util::Log.level = :info
       end
+=======
     end
 
+    set_log_level
+
     Puppet::Util::Log.setup_default unless options[:setdest]
+  end
+
+  def set_log_level
+    if options[:debug]
+      Puppet::Util::Log.level = :debug
+    elsif options[:verbose]
+      Puppet::Util::Log.level = :info
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
+    end
+  end
+
+  def handle_logdest_arg(arg)
+    begin
+      Puppet::Util::Log.newdestination(arg)
+      options[:setdest] = true
+    rescue => detail
+      Puppet.log_exception(detail)
+    end
   end
 
   def configure_indirector_routes

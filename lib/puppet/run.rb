@@ -72,7 +72,20 @@ class Puppet::Run
     new(options)
   end
 
+<<<<<<< HEAD
   def to_pson
     @options.merge(:background => @background).to_pson
+=======
+  def to_data_hash
+    {
+      :options => @options,
+      :background => @background,
+      :status => @status
+    }
+  end
+
+  def to_pson(*args)
+    to_data_hash.to_pson(*args)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 end

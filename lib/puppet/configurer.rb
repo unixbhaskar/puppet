@@ -135,6 +135,7 @@ class Puppet::Configurer
     init_storage
 
     Puppet::Util::Log.newdestination(report)
+
     begin
       unless Puppet[:node_name_fact].empty?
         fact_options = get_facts(options)

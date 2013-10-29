@@ -1,14 +1,68 @@
 require 'puppet/network/format_handler'
 
+<<<<<<< HEAD
 Puppet::Network::FormatHandler.create_serialized_formats(:yaml) do
   # Yaml doesn't need the class name; it's serialized.
   def intern(klass, text)
     YAML.safely_load(text)
+=======
+Puppet::Network::FormatHandler.create_serialized_formats(:msgpack, :weight => 20, :mime => "application/x-msgpack", :required_methods => [:render_method, :intern_method]) do
+  def intern(klass, text)
+    data = MessagePack.unpack(text)
+    return data if data.is_a?(klass)
+    klass.from_pson(data)
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   # Yaml doesn't need the class name; it's serialized.
   def intern_multiple(klass, text)
+<<<<<<< HEAD
     YAML.safely_load(text)
+=======
+    MessagePack.unpack(text).collect do |data|
+      klass.from_pson(data)
+    end
+>>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
+  end
+
+  def render(instance)
+    instance.to_msgpack
+  end
+
+  def render_multiple(instances)
+    instances.to_msgpack
+  end
+
+  def supported?(klass)
+    Puppet.features.msgpack? && klass.method_defined?(:to_msgpack)
+  end
+end
+
+Puppet::Network::FormatHandler.create_serialized_formats(:yaml) do
+  def intern(klass, text)
+    data = YAML.load(text, :safe => true, :deserialize_symbols => true)
+    data_to_instance(klass, data)
+  end
+
+  def intern_multiple(klass, text)
+    data = YAML.load(text, :safe => true, :deserialize_symbols => true)
+    unless data.respond_to?(:collect)
+      raise Puppet::Network::FormatHandler::FormatError, "Serialized YAML did not contain a collection of instances when calling intern_multiple"
+    end
+
+    data.collect do |datum|
+      data_to_instance(klass, datum)
+    end
+  end
+
+  def data_to_instance(klass, data)
+    return data if data.is_a?(klass)
+
+    unless data.is_a? Hash
+      raise Puppet::Network::FormatHandler::FormatError, "Serialized YAML did not contain a valid instance of #{klass}"
+    end
+
+    klass.from_pson(data)
   end
 
   def render(instance)
