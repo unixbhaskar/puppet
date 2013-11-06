@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 Puppet
 ======
 
@@ -51,3 +52,9 @@ site](http://projects.puppetlabs.com). A [mailing
 list](https://groups.google.com/forum/?fromgroups#!forum/puppet-users) is
 available for asking questions and getting help from others. In addition there
 is an active #puppet channel on Freenode.
+=======
+puppet
+======
+
+Server automation framework and application
+>>>>>>> 4e9de8ebc81cdf4a7a973432891ca9076c5b4104
