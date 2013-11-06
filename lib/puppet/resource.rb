@@ -56,7 +56,7 @@ class Puppet::Resource
     "#{@type}[#{@title}]#{to_hash.inspect}"
   end
 
-  def to_data_hash
+  def to_pson_data_hash
     data = ([:type, :title, :tags] + ATTRIBUTES).inject({}) do |hash, param|
       next hash unless value = self.send(param)
       hash[param.to_s] = value
@@ -78,11 +78,6 @@ class Puppet::Resource
     data["parameters"] = params unless params.empty?
 
     data
-  end
-
-  # This doesn't include document type as it is part of a catalog
-  def to_pson_data_hash
-    to_data_hash
   end
 
   def self.value_to_pson_data(value)
@@ -107,20 +102,8 @@ class Puppet::Resource
     end
   end
 
-  YAML_ATTRIBUTES = [:@file, :@line, :@exported, :@type, :@title, :@tags, :@parameters]
-
-  # Explicitly list the instance variables that should be serialized when
-  # converting to YAML.
-  #
-  # @api private
-  # @return [Array<Symbol>] The intersection of our explicit variable list and
-  #   all of the instance variables defined on this class.
-  def to_yaml_properties
-    YAML_ATTRIBUTES & super
-  end
-
   def to_pson(*args)
-    to_data_hash.to_pson(*args)
+    to_pson_data_hash.to_pson(*args)
   end
 
   # Proxy these methods to the parameters hash.  It's likely they'll
@@ -335,43 +318,16 @@ class Puppet::Resource
   # We make a request to the backend for the key 'foo::port' not 'foo'
   #
   def lookup_external_default_for(param, scope)
-<<<<<<< HEAD
     if resource_type.type == :hostclass
       Puppet::DataBinding.indirection.find(
         "#{resource_type.name}::#{param}",
         :environment => scope.environment.to_s,
         :variables => Puppet::DataBinding::Variables.new(scope))
-=======
-    # Only lookup parameters for host classes
-    return nil unless resource_type.type == :hostclass
-
-    name = "#{resource_type.name}::#{param}"
-    # Lookup with injector (optionally), and if no value bound, lookup with "classic hiera"
-    result = nil
-    if scope.compiler.is_binder_active?
-      result = scope.compiler.injector.lookup(scope, name)
-    end
-    if result.nil?
-      lookup_with_databinding(name, scope)
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     else
       nil
     end
   end
   private :lookup_external_default_for
-
-  def lookup_with_databinding(name, scope)
-    begin
-      Puppet::DataBinding.indirection.find(
-        name,
-        :environment => scope.environment.to_s,
-        :variables => scope)
-    rescue Puppet::DataBinding::LookupError => e
-      raise Puppet::Error.new("Error from DataBinding '#{Puppet[:data_binding_terminus]}' while looking up '#{name}': #{e.message}", e)
-    end
-  end
-
-  private :lookup_with_databinding
 
   def set_default_parameters(scope)
     return [] unless resource_type and resource_type.respond_to?(:arguments)
@@ -396,39 +352,8 @@ class Puppet::Resource
     end.compact
   end
 
-  def copy_as_resource
-    result = Puppet::Resource.new(type, title)
-
-    to_hash.each do |p, v|
-      if v.is_a?(Puppet::Resource)
-        v = Puppet::Resource.new(v.type, v.title)
-      elsif v.is_a?(Array)
-        # flatten resource references arrays
-        v = v.flatten if v.flatten.find { |av| av.is_a?(Puppet::Resource) }
-        v = v.collect do |av|
-          av = Puppet::Resource.new(av.type, av.title) if av.is_a?(Puppet::Resource)
-          av
-        end
-      end
-
-      # If the value is an array with only one value, then
-      # convert it to a single value.  This is largely so that
-      # the database interaction doesn't have to worry about
-      # whether it returns an array or a string.
-      result[p] = if v.is_a?(Array) and v.length == 1
-                    v[0]
-                  else
-                    v
-                  end
-    end
-
-    result.file = self.file
-    result.line = self.line
-    result.exported = self.exported
-    result.virtual = self.virtual
-    result.tag(*self.tags)
-
-    result
+  def to_resource
+    self
   end
 
   def valid_parameter?(name)

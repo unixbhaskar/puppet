@@ -61,7 +61,6 @@ task :default do
 end
 
 task :spec do
-<<<<<<< HEAD
   sh %{rspec -fd spec}
 end
 
@@ -70,7 +69,4 @@ namespace "ci" do
     ENV["LOG_SPEC_ORDER"] = "true"
     sh %{rspec -r yarjuf -f JUnit -o result.xml -fd spec}
   end
-=======
-  sh %{rspec spec}
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 end

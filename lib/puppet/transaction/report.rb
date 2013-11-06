@@ -174,66 +174,6 @@ class Puppet::Transaction::Report
     @status = 'failed' # assume failed until the report is finalized
   end
 
-<<<<<<< HEAD
-=======
-  # @api private
-  def initialize_from_hash(data)
-    @puppet_version = data['puppet_version']
-    @report_format = data['report_format']
-    @configuration_version = data['configuration_version']
-    @transaction_uuid = data['transaction_uuid']
-    @environment = data['environment']
-    @status = data['status']
-    @host = data['host']
-    @time = data['time']
-    if @time.is_a? String
-      @time = Time.parse(@time)
-    end
-    @kind = data['kind']
-
-    @metrics = {}
-    data['metrics'].each do |name, hash|
-      @metrics[name] = Puppet::Util::Metric.from_pson(hash)
-    end
-
-    @logs = data['logs'].map do |record|
-      Puppet::Util::Log.from_pson(record)
-    end
-
-    @resource_statuses = {}
-    data['resource_statuses'].map do |record|
-      if record[1] == {}
-        status = nil
-      else
-        status = Puppet::Resource::Status.from_pson(record[1])
-      end
-      @resource_statuses[record[0]] = status
-    end
-  end
-
-  def to_data_hash
-    {
-      'host' => @host,
-      'time' => @time.iso8601(9),
-      'configuration_version' => @configuration_version,
-      'transaction_uuid' => @transaction_uuid,
-      'report_format' => @report_format,
-      'puppet_version' => @puppet_version,
-      'kind' => @kind,
-      'status' => @status,
-      'environment' => @environment,
-
-      'logs' => @logs,
-      'metrics' => @metrics,
-      'resource_statuses' => @resource_statuses,
-    }
-  end
-
-  def to_pson
-    to_data_hash.to_pson
-  end
-
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   # @return [String] the host name
   # @api public
   #
@@ -312,20 +252,9 @@ class Puppet::Transaction::Report
   # @api private
   #
   def to_yaml_properties
-    super - [:@external_times]
+    instance_variables - [:@external_times]
   end
 
-<<<<<<< HEAD
-=======
-  def self.supported_formats
-    [:pson, :yaml]
-  end
-
-  def self.default_format
-    Puppet[:report_serialization_format].intern
-  end
-
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   private
 
   def calculate_change_metric

@@ -95,24 +95,3 @@ end
 def have_printed(what)
   HavePrintedMatcher.new(what)
 end
-<<<<<<< HEAD
-=======
-
-RSpec::Matchers.define :equal_attributes_of do |expected|
-  match do |actual|
-    actual.instance_variables.all? do |attr|
-      actual.instance_variable_get(attr) == expected.instance_variable_get(attr)
-    end
-  end
-end
-
-RSpec::Matchers.define :be_one_of do |*expected|
-  match do |actual|
-    expected.include? actual
-  end
-
-  failure_message_for_should do |actual|
-    "expected #{actual.inspect} to be one of #{expected.map(&:inspect).join(' or ')}"
-  end
-end
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313

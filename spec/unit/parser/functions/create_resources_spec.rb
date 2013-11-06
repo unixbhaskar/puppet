@@ -23,7 +23,6 @@ describe 'function for dynamically creating resources' do
     expect { @scope.function_create_resources(['foo', 'bar', 'blah', 'baz']) }.to raise_error(ArgumentError, 'create_resources(): wrong number of arguments (4; must be 2 or 3)')
   end
 
-<<<<<<< HEAD
   describe 'when the caller does not supply a name parameter' do
     it 'should set a default resource name equal to the resource title' do
       Puppet::Parser::Resource.any_instance.expects(:set_parameter).with(:name, 'test').once
@@ -37,14 +36,6 @@ describe 'function for dynamically creating resources' do
       Puppet::Parser::Resource.any_instance.expects(:set_parameter).with(:name, 'test').never
       @scope.function_create_resources(['notify', {'test'=>{'name' => 'user_supplied'}}])
     end
-=======
-  it 'should require second argument to be a hash' do
-    expect { @scope.function_create_resources(['foo','bar']) }.to raise_error(ArgumentError, 'create_resources(): second argument must be a hash')
-  end
-
-  it 'should require optional third argument to be a hash' do
-    expect { @scope.function_create_resources(['foo',{},'foo']) }.to raise_error(ArgumentError, 'create_resources(): third argument, if provided, must be a hash')
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   describe 'when creating native types' do

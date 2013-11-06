@@ -2,78 +2,9 @@
 require 'spec_helper'
 require 'puppet/indirector/rest'
 
-<<<<<<< HEAD
 shared_examples_for "a REST http call" do
   it "should accept a path" do
     lambda { @search.send(@method, *@arguments) }.should_not raise_error(ArgumentError)
-=======
-HTTP_ERROR_CODES = [300, 400, 500]
-
-# Just one from each category since the code makes no real distinctions
-shared_examples_for "a REST terminus method" do |terminus_method|
-  describe "when talking to an older master" do
-    it "should set backward compatibility settings" do
-      response.stubs(:[]).with(Puppet::Network::HTTP::HEADER_PUPPET_VERSION).returns nil
-
-      terminus.send(terminus_method, request)
-      Puppet[:report_serialization_format].should == 'yaml'
-      Puppet[:legacy_query_parameter_serialization].should == true
-    end
-  end
-
-  describe "when talking to a 3.3.1 master" do
-    it "should not set backward compatibility settings" do
-      response.stubs(:[]).with(Puppet::Network::HTTP::HEADER_PUPPET_VERSION).returns "3.3.1"
-
-      terminus.send(terminus_method, request)
-      Puppet[:report_serialization_format].should == 'pson'
-      Puppet[:legacy_query_parameter_serialization].should == false
-    end
-  end
-
-  HTTP_ERROR_CODES.each do |code|
-    describe "when the response code is #{code}" do
-      let(:response) { mock_response(code, 'error messaged!!!') }
-
-      it "raises an http error with the body of the response" do
-        expect {
-          terminus.send(terminus_method, request)
-        }.to raise_error(Net::HTTPError, "Error #{code} on SERVER: #{response.body}")
-      end
-
-      it "does not attempt to deserialize the response" do
-        model.expects(:convert_from).never
-
-        expect {
-          terminus.send(terminus_method, request)
-        }.to raise_error(Net::HTTPError)
-      end
-
-      # I'm not sure what this means or if it's used
-      it "if the body is empty raises an http error with the response header" do
-        response.stubs(:body).returns ""
-        response.stubs(:message).returns "fhqwhgads"
-
-        expect {
-          terminus.send(terminus_method, request)
-        }.to raise_error(Net::HTTPError, "Error #{code} on SERVER: #{response.message}")
-      end
-
-      describe "and the body is compressed" do
-        it "raises an http error with the decompressed body of the response" do
-          uncompressed_body = "why"
-          compressed_body = Zlib::Deflate.deflate(uncompressed_body)
-
-          response = mock_response(code, compressed_body, 'text/plain', 'deflate')
-          connection.expects(http_method).returns(response)
-
-          expect {
-            terminus.send(terminus_method, request)
-          }.to raise_error(Net::HTTPError, "Error #{code} on SERVER: #{uncompressed_body}")
-        end
-      end
-    end
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   it "should require a path" do
@@ -95,7 +26,6 @@ end
 
 describe Puppet::Indirector::REST do
   before :all do
-<<<<<<< HEAD
     Puppet::Indirector::Terminus.stubs(:register_terminus_class)
     @model = stub('model', :supported_formats => %w{}, :convert_from => nil)
     @instance = stub('model instance', :name= => nil)
@@ -108,72 +38,11 @@ describe Puppet::Indirector::REST do
           module Test
           end
         end
-=======
-    class Puppet::TestModel
-      extend Puppet::Indirector
-      indirects :test_model
-      attr_accessor :name, :data
-      def initialize(name = "name", data = '')
-        @name = name
-        @data = data
-      end
-
-      def self.convert_from(format, string)
-        new('', string)
-      end
-
-      def self.convert_from_multiple(format, string)
-        string.split(',').collect { |s| convert_from(format, s) }
-      end
-
-      def to_data_hash
-        { 'name' => @name, 'data' => @data }
-      end
-
-      def ==(other)
-        other.is_a? Puppet::TestModel and other.name == name and other.data == data
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
       end
     end
     @rest_class = class This::Is::A::Test::Class < Puppet::Indirector::REST
       self
     end
-<<<<<<< HEAD
-=======
-
-    Puppet::TestModel.indirection.terminus_class = :rest
-  end
-
-  after :all do
-    Puppet::TestModel.indirection.delete
-    # Remove the class, unlinking it from the rest of the system.
-    Puppet.send(:remove_const, :TestModel)
-  end
-
-  let(:terminus_class) { Puppet::TestModel::Rest }
-  let(:terminus) { Puppet::TestModel.indirection.terminus(:rest) }
-  let(:indirection) { Puppet::TestModel.indirection }
-  let(:model) { Puppet::TestModel }
-
-  def mock_response(code, body, content_type='text/plain', encoding=nil)
-    obj = stub('http 200 ok', :code => code.to_s, :body => body)
-    obj.stubs(:[]).with('content-type').returns(content_type)
-    obj.stubs(:[]).with('content-encoding').returns(encoding)
-    obj.stubs(:[]).with(Puppet::Network::HTTP::HEADER_PUPPET_VERSION).returns(Puppet.version)
-    obj
-  end
-
-  def find_request(key, options={})
-    Puppet::Indirector::Request.new(:test_model, :find, key, nil, options)
-  end
-
-  def head_request(key, options={})
-    Puppet::Indirector::Request.new(:test_model, :head, key, nil, options)
-  end
-
-  def search_request(key, options={})
-    Puppet::Indirector::Request.new(:test_model, :search, key, nil, options)
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
   end
 
   before :each do
@@ -220,6 +89,7 @@ describe Puppet::Indirector::REST do
     Puppet[:masterport] = "543"
     @rest_class.port.should == 543
   end
+
 
   it 'should default to :puppet for the srv_service' do
     Puppet::Indirector::REST.srv_service.should == :puppet

@@ -14,13 +14,8 @@ end
 platforms :ruby do
   gem 'pry', :group => :development
   gem 'yard', :group => :development
-<<<<<<< HEAD
   gem 'redcarpet', :group => :development
   gem "racc", "~> 1.4", :group => :development
-=======
-  gem 'redcarpet', '~> 2.0', :group => :development
-  gem "racc", "1.4.9", :group => :development
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 end
 
 gem "puppet", :path => File.dirname(__FILE__), :require => false
@@ -42,7 +37,6 @@ group(:extra) do
   gem "sqlite3", :require => false
   gem "stomp", :require => false
   gem "tzinfo", :require => false
-  gem "msgpack", :require => false
 end
 
 platforms :mswin, :mingw do

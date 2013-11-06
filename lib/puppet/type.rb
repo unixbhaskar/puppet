@@ -2273,16 +2273,6 @@ class Type
   # @return [Array<Puppet::Parameter>] the validated list/set of attributes
   #
   def finish
-<<<<<<< HEAD
-=======
-    # Call post_compile hook on every parameter that implements it. This includes all subclasses
-    # of parameter including, but not limited to, regular parameters, metaparameters, relationship
-    # parameters, and properties.
-    eachparameter do |parameter|
-      parameter.post_compile if parameter.respond_to? :post_compile
-    end
-
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     # Make sure all of our relationships are valid.  Again, must be done
     # when the entire catalog is instantiated.
     self.class.relationship_params.collect do |klass|

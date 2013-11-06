@@ -318,10 +318,8 @@ describe content do
       end
 
       it "should copy content from the source to the file" do
-        dest_file = Puppet::FileSystem::File.new(@filename)
         @resource.write(@source)
-
-        dest_file.binread.should == @source_content
+        IO.binread(@filename).should == @source_content
       end
 
       it "should return the checksum computed" do
@@ -349,10 +347,8 @@ describe content do
       end
 
       it "should write the contents to the file" do
-        dest_file = Puppet::FileSystem::File.new(@filename)
         @resource.write(@source)
-
-        dest_file.binread.should == @source_content
+        IO.binread(@filename).should == @source_content
       end
 
       it "should not write anything if source is not found" do

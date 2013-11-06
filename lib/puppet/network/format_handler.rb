@@ -5,7 +5,6 @@ require 'puppet/network/format'
 module Puppet::Network::FormatHandler
   class FormatError < Puppet::Error; end
 
-<<<<<<< HEAD
   class FormatProtector
     attr_reader :format
 
@@ -28,11 +27,6 @@ module Puppet::Network::FormatHandler
       end
     end
   end
-=======
-  ALL_MEDIA_TYPES = '*/*'.freeze
-
-  @formats = {}
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 
   @formats = {}
   def self.create(*args, &block)
@@ -105,7 +99,6 @@ module Puppet::Network::FormatHandler
     out.name
   end
 
-<<<<<<< HEAD
   module ClassMethods
     def format_handler
       Puppet::Network::FormatHandler
@@ -177,41 +170,11 @@ module Puppet::Network::FormatHandler
       format ||= self.class.default_format
 
       Puppet::Network::FormatHandler.protected_format(format).mime
-=======
-  # Determine which of the accepted formats should be used given what is supported.
-  #
-  # @param accepted [Array<String, Symbol>] the accepted formats in a form a
-  #   that generally conforms to an HTTP Accept header. Any quality specifiers
-  #   are ignored and instead the formats are simply in strict preference order
-  #   (most preferred is first)
-  # @param supported [Array<Symbol>] the names of the supported formats (the
-  #   most preferred format is first)
-  # @return [Puppet::Network::Format, nil] the most suitable format
-  # @api private
-  def self.most_suitable_format_for(accepted, supported)
-    format_name = accepted.collect do |accepted|
-      accepted.to_s.sub(/;q=.*$/, '')
-    end.collect do |accepted|
-      if accepted == ALL_MEDIA_TYPES
-        supported.first
-      else
-        format_to_canonical_name_or_nil(accepted)
-      end
-    end.find do |accepted|
-      supported.include?(accepted)
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
 
     def support_format?(name)
       self.class.support_format?(name)
     end
-  end
-
-  # @api private
-  def self.format_to_canonical_name_or_nil(format)
-    format_to_canonical_name(format)
-  rescue ArgumentError
-    nil
   end
 end
 

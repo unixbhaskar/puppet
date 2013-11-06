@@ -83,11 +83,6 @@ module Puppet::Test
 
       Puppet::Node::Environment.clear
       Puppet::Parser::Functions.reset
-<<<<<<< HEAD
-=======
-      Puppet::Application.clear!
-      Puppet::Util::Profiler.clear
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 
       Puppet.clear_deprecation_warnings
     end

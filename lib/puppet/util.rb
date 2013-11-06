@@ -266,7 +266,7 @@ module Util
     if Puppet.features.microsoft_windows?
       path = path.gsub(/\\/, '/')
 
-      if unc = /^\/\/([^\/]+)(\/.+)/.match(path)
+      if unc = /^\/\/([^\/]+)(\/[^\/]+)/.match(path)
         params[:host] = unc[1]
         path = unc[2]
       elsif path =~ /^[a-z]:\//i
@@ -357,7 +357,6 @@ module Util
 
   # Because IO#binread is only available in 1.9
   def binread(file)
-    Puppet.deprecation_warning("Puppet::Util.binread is deprecated. Read the file without this method as it will be removed in a future version.")
     File.open(file, 'rb') { |f| f.read }
   end
   module_function :binread
@@ -489,6 +488,7 @@ module Util
     file
   end
   module_function :replace_file
+
 
   # Executes a block of code, wrapped with some special exception handling.  Causes the ruby interpreter to
   #  exit if the block throws an exception.

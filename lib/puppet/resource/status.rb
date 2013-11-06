@@ -1,15 +1,8 @@
-<<<<<<< HEAD
-=======
-require 'time'
-require 'puppet/network/format_support'
-
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
 module Puppet
   class Resource
     class Status
       include Puppet::Util::Tagging
       include Puppet::Util::Logging
-      include Puppet::Network::FormatSupport
 
       attr_accessor :resource, :node, :file, :line, :current_values, :status, :evaluation_time
 
@@ -74,59 +67,8 @@ module Puppet
         @title = resource.title
       end
 
-<<<<<<< HEAD
-=======
-      def initialize_from_hash(data)
-        @resource_type = data['resource_type']
-        @title = data['title']
-        @resource = data['resource']
-        @containment_path = data['containment_path']
-        @file = data['file']
-        @line = data['line']
-        @evaluation_time = data['evaluation_time']
-        @change_count = data['change_count']
-        @out_of_sync_count = data['out_of_sync_count']
-        @tags = data['tags']
-        @time = data['time']
-        @time = Time.parse(@time) if @time.is_a? String
-        @out_of_sync = data['out_of_sync']
-        @changed = data['changed']
-        @skipped = data['skipped']
-        @failed = data['failed']
-
-        @events = data['events'].map do |event|
-          Puppet::Transaction::Event.from_pson(event)
-        end
-      end
-
-      def to_data_hash
-        {
-          'title' => @title,
-          'file' => @file,
-          'line' => @line,
-          'resource' => @resource,
-          'resource_type' => @resource_type,
-          'containment_path' => @containment_path,
-          'evaluation_time' => @evaluation_time,
-          'tags' => @tags,
-          'time' => @time.iso8601(9),
-          'failed' => @failed,
-          'changed' => @changed,
-          'out_of_sync' => @out_of_sync,
-          'skipped' => @skipped,
-          'change_count' => @change_count,
-          'out_of_sync_count' => @out_of_sync_count,
-          'events' => @events,
-        }
-      end
-
-      def to_pson(*args)
-        to_data_hash.to_pson(*args)
-      end
-
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
       def to_yaml_properties
-        YAML_ATTRIBUTES & super
+        YAML_ATTRIBUTES & instance_variables
       end
 
       private

@@ -121,7 +121,6 @@ module Puppet::ModuleTool
       end
     end
 
-<<<<<<< HEAD
     # Return the PSON record representing this instance.
     def to_pson(*args)
       return {
@@ -137,31 +136,6 @@ module Puppet::ModuleTool
         :types        => types,
         :checksums    => checksums
       }.to_pson(*args)
-=======
-    def to_data_hash()
-      return extra_metadata.merge({
-        'name'         => @full_module_name,
-        'version'      => @version,
-        'source'       => source,
-        'author'       => author,
-        'license'      => license,
-        'summary'      => summary,
-        'description'  => description,
-        'project_page' => project_page,
-        'dependencies' => dependencies,
-        'types'        => types,
-        'checksums'    => checksums
-      })
-    end
-
-    def to_hash()
-      to_data_hash
-    end
-
-    # Return the PSON record representing this instance.
-    def to_pson(*args)
-      return to_data_hash.to_pson(*args)
->>>>>>> aa3bdeed7c2a41922f50a12a96d41ce1c2a72313
     end
   end
 end

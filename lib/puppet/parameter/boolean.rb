@@ -17,9 +17,4 @@ class Puppet::Parameter::Boolean < Puppet::Parameter
       fail('expected a boolean value')
     end
   end
-
-  def self.initvars
-    super
-    @value_collection.newvalues(*Puppet::Coercion.boolean_values)
-  end
 end
