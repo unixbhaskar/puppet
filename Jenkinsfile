@@ -5,4 +5,7 @@ node {
   echo  'Groovy script 2'
 }
 
+git branch: 'puppet', url: 'https://github.com/unixbhaskar/puppet.git'
+
+
 
